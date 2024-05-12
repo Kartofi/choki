@@ -69,7 +69,12 @@ impl Server {
         Ok(())
     }
     ///Starts listening on the given port.
-    pub fn listen(&mut self, port: u16) -> Result<(), HttpServerError> {
+    pub fn listen(&mut self, port: u32) -> Result<(), HttpServerError> {
+        if port > 65_535 {
+            return Err(HttpServerError::new(
+                "Invalid port: port must be 0-65,535".to_string(),
+            ));
+        }
         if self.active == true {
             return Err(HttpServerError::new(
                 "The server is already running!".to_string(),
