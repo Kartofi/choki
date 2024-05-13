@@ -2,53 +2,15 @@ use std::thread;
 use std::{io::Write, net::*};
 
 use std::io::Read;
+use structs::*;
 use threadpool::ThreadPool;
+
+mod structs;
 pub struct Server {
     active: bool,
     pub endpoints: Vec<EndPoint>,
 }
-#[derive(Clone)]
-pub enum RequestType {
-    Get = 1,
-    Post = 2,
-}
-#[derive(Clone)]
-pub struct EndPoint {
-    pub path: String,
-    pub req_type: RequestType,
-}
-impl EndPoint {
-    pub fn new(path: String, req_type: RequestType) -> EndPoint {
-        return EndPoint {
-            path: path,
-            req_type: req_type,
-        };
-    }
-    pub fn parse(input: &str) -> Result<EndPoint, HttpServerError> {
-        let parts: Vec<&str> = input.split(" ").collect();
-        if parts.len() != 3 {
-            return Err(HttpServerError::new("Invalid input.".to_string()));
-        }
-        let req_type: RequestType = if parts[0].to_lowercase() == "get" {
-            RequestType::Get
-        } else {
-            RequestType::Post
-        };
 
-        let path = parts[1];
-
-        Ok(EndPoint::new(path.to_string(), req_type))
-    }
-}
-#[derive(Debug)]
-pub struct HttpServerError {
-    pub reason: String,
-}
-impl HttpServerError {
-    pub fn new(reason: String) -> HttpServerError {
-        return HttpServerError { reason: reason };
-    }
-}
 impl Server {
     pub fn new() -> Server {
         return Server {
@@ -97,9 +59,9 @@ impl Server {
                     let lines: Vec<&str> = string_req.lines().collect();
 
                     println!("{}", lines[0]);
-                    let req = EndPoint::parse(lines[0]).unwrap();
+                    let req_url = Url::parse(lines[0]).unwrap();
                     for route in reoutes_clone {
-                        if route.path == req.path {
+                        if route.path == req_url.path {
                             let response = "HTTP/1.1 200 OK\r\n\r\n Hi";
                             stream
                                 .write_all(response.as_bytes())
