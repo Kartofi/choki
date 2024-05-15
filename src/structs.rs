@@ -1,6 +1,7 @@
 use std::{collections::HashMap, io::Write, net::TcpStream, string};
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
+
 pub enum RequestType {
     Get = 1,
     Post = 2,
@@ -74,6 +75,27 @@ impl Response {
     ///Sends string as output.
     pub fn send_string(&mut self, data: &str) {
         let response = "HTTP/1.1 200 OK\r\n\r\n".to_owned() + data;
+
+        self.stream
+            .write_all(response.as_bytes())
+            .expect("Failed to write");
+    }
+    pub fn send_bytes(&mut self, data: &[u8]) {
+        let response = "HTTP/1.1 200 OK\r\n\r\n";
+
+        self.stream
+            .write_all(response.as_bytes())
+            .expect("Failed to write");
+        self.stream.write_all(data).expect("Failed to write");
+    }
+    pub fn send_code(&mut self, code: usize) {
+        let response = "HTTP/1.1 ".to_owned()
+            + &code.to_string()
+            + if code == 404 {
+                " NOT FOUND\r\n\r\n"
+            } else {
+                " OK\r\n\r\n"
+            };
 
         self.stream
             .write_all(response.as_bytes())

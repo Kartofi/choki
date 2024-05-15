@@ -11,6 +11,9 @@ fn main() {
             res.send_string(&str);
         })
         .unwrap();
+    server
+        .new_static("/images".to_string(), "./tests/static".to_string())
+        .unwrap();
     server.listen(3000).unwrap();
 
     let dur = Duration::from_secs(2);
