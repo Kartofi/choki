@@ -91,10 +91,10 @@ impl Response {
     pub fn send_code(&mut self, code: usize) {
         let response = "HTTP/1.1 ".to_owned()
             + &code.to_string()
-            + if code == 404 {
-                " NOT FOUND\r\n\r\n"
-            } else {
-                " OK\r\n\r\n"
+            + match code {
+                404 => " NOT FOUND\r\n\r\n",
+                413 => " PAYLOAD TOO LARGE\r\n\r\n",
+                _ => " OK\r\n\r\n",
             };
 
         self.stream
@@ -105,33 +105,37 @@ impl Response {
 pub struct Request {
     pub query: HashMap<String, String>,
     pub user_agent: Option<String>,
+    pub content_length: usize,
 }
 impl Request {
-    pub fn new(query: HashMap<String, String>, user_agent: Option<String>) -> Request {
+    pub fn new(
+        query: HashMap<String, String>,
+        user_agent: Option<String>,
+        content_length: usize,
+    ) -> Request {
         return Request {
             query: query,
             user_agent: user_agent,
+            content_length: content_length,
         };
     }
-    pub fn parse(lines: Vec<&str>) -> Request {
+    pub fn parse(lines: Vec<&str>, query: Option<HashMap<String, String>>) -> Request {
+        let mut req = Request::new(query.unwrap_or_default(), None, 0);
         for line in lines {
             if line.starts_with("User-Agent:") {
                 let parts: Vec<&str> = line.split("Agent: ").collect();
 
-                return Request::new(HashMap::new(), Some(parts[1].to_string()));
-            }
-        }
-        return Request::new(HashMap::new(), None);
-    }
-    pub fn parse_with_query(lines: Vec<&str>, query: HashMap<String, String>) -> Request {
-        for line in lines {
-            if line.starts_with("User-Agent:") {
-                let parts: Vec<&str> = line.split("Agent: ").collect();
+                req.user_agent = Some(parts[1].to_string());
+            } else if line.starts_with("Content-Length:") {
+                let parts: Vec<&str> = line.split(" ").collect();
 
-                return Request::new(query, Some(parts[1].to_string()));
+                req.content_length = match parts[1].parse::<usize>() {
+                    Ok(res) => res,
+                    Err(err) => 0,
+                };
             }
         }
-        return Request::new(query, None);
+        return req;
     }
 }
 #[derive(Clone)]

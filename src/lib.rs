@@ -11,14 +11,16 @@ use threadpool::ThreadPool;
 pub mod structs;
 pub struct Server {
     active: bool,
+    pub max_content_length: usize,
     pub endpoints: Vec<EndPoint>,
     pub static_endpoints: HashMap<String, String>,
 }
 
 impl Server {
-    pub fn new() -> Server {
+    pub fn new(max_content_length: Option<usize>) -> Server {
         return Server {
             active: false,
+            max_content_length: max_content_length.unwrap_or_default(),
             endpoints: Vec::new(),
             static_endpoints: HashMap::new(),
         };
@@ -54,10 +56,10 @@ impl Server {
         self.static_endpoints.insert(path, folder);
         Ok(())
     }
-    ///Creates a new GET endpoint
-    pub fn get(
+    fn new_endpoint(
         &mut self,
         mut path: String,
+        req_type: RequestType,
         handle: fn(req: Request, res: Response),
     ) -> Result<(), HttpServerError> {
         if self.active == true {
@@ -69,7 +71,7 @@ impl Server {
             && self
                 .endpoints
                 .iter()
-                .any(|x| x.path == path && x.req_type == RequestType::Get)
+                .any(|x| x.path == path && x.req_type == req_type)
             || self.static_endpoints.len() > 0 && self.static_endpoints.iter().any(|x| x.0 == &path)
         {
             return Err(HttpServerError::new("Endpoint already exists!".to_string()));
@@ -77,9 +79,26 @@ impl Server {
         if path.len() > 1 && path.ends_with("/") {
             path.remove(path.len() - 1);
         }
-        self.endpoints
-            .push(EndPoint::new(path, RequestType::Get, handle));
+        self.endpoints.push(EndPoint::new(path, req_type, handle));
         Ok(())
+    }
+
+    ///Creates a new GET endpoint
+    pub fn get(
+        &mut self,
+        mut path: String,
+        handle: fn(req: Request, res: Response),
+    ) -> Result<(), HttpServerError> {
+        self.new_endpoint(path, RequestType::Get, handle)
+    }
+
+    ///Creates a new POST endpoint
+    pub fn post(
+        &mut self,
+        mut path: String,
+        handle: fn(req: Request, res: Response),
+    ) -> Result<(), HttpServerError> {
+        self.new_endpoint(path, RequestType::Post, handle)
     }
     ///Starts listening on the given port.
     pub fn listen(&mut self, port: u32) -> Result<(), HttpServerError> {
@@ -97,11 +116,16 @@ impl Server {
         let pool: ThreadPool = ThreadPool::new(6);
         let routes = self.endpoints.clone();
         let static_routes = self.static_endpoints.clone();
+
+        let max_content_length = self.max_content_length.clone();
+
         thread::spawn(move || {
             let tcp: TcpListener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
             for stream in tcp.incoming() {
                 let routes_clone = routes.clone();
                 let static_routes_clone = static_routes.clone();
+                let max_content_length_clone = max_content_length.clone();
+
                 pool.execute(move || {
                     let mut stream: TcpStream = stream.unwrap();
 
@@ -117,39 +141,44 @@ impl Server {
                     }
                     let req_url = Url::parse(lines[0]).unwrap();
 
-                    let mut res = Response::new(stream.try_clone().unwrap());
+                    let req = Request::parse(lines, Some(req_url.query));
 
-                    let req = Request::parse_with_query(lines, req_url.query);
-
-                    let mut sent: bool = false;
-                    for route in routes_clone {
-                        println!("{}", route.path);
-                        if route.path == req_url.path && req_url.req_type == route.req_type {
-                            (route.handle)(req, res);
-                            sent = true;
-                            break;
-                        }
-                    }
-                    if sent == false {
-                        let mut res2 = Response::new(stream.try_clone().unwrap());
-
-                        for route in static_routes_clone {
-                            if req_url.path.starts_with(&route.0) {
-                                let parts: Vec<&str> = req_url.path.split(&route.0).collect();
-                                if parts.len() == 0 {
-                                    continue;
-                                }
-                                match fs::read(route.1 + parts[1]) {
-                                    Ok(data) => {
-                                        res2.send_bytes(&data);
-                                    }
-                                    Err(err) => {
-                                        println!("There was error serving this file!");
-                                        res2.send_code(404);
-                                    }
-                                }
-
+                    if max_content_length_clone > 0 && req.content_length > max_content_length_clone
+                    {
+                        let mut res = Response::new(stream.try_clone().unwrap());
+                        res.send_code(413);
+                    } else {
+                        let mut sent: bool = false;
+                        for route in routes_clone {
+                            println!("{}", route.path);
+                            if route.path == req_url.path && req_url.req_type == route.req_type {
+                                let mut res = Response::new(stream.try_clone().unwrap());
+                                (route.handle)(req, res);
+                                sent = true;
                                 break;
+                            }
+                        }
+                        if sent == false {
+                            let mut res2 = Response::new(stream.try_clone().unwrap());
+
+                            for route in static_routes_clone {
+                                if req_url.path.starts_with(&route.0) {
+                                    let parts: Vec<&str> = req_url.path.split(&route.0).collect();
+                                    if parts.len() == 0 {
+                                        continue;
+                                    }
+                                    match fs::read(route.1 + parts[1]) {
+                                        Ok(data) => {
+                                            res2.send_bytes(&data);
+                                        }
+                                        Err(err) => {
+                                            println!("There was error serving this file!");
+                                            res2.send_code(404);
+                                        }
+                                    }
+
+                                    break;
+                                }
                             }
                         }
                     }

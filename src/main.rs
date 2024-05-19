@@ -1,14 +1,23 @@
+use std::fs;
 use std::{io::Write, time::Duration};
 
 use choki::structs::{Request, Response};
 use choki::Server;
 
 fn main() {
-    let mut server = Server::new();
+    let mut server = Server::new(None);
     server
         .get("/".to_string(), |req: Request, mut res: Response| {
             let str = req.user_agent.unwrap();
-            res.send_string(&str);
+            let file = fs::read("./tests/static/image.gif").unwrap();
+            res.send_bytes(&file);
+        })
+        .unwrap();
+    server
+        .post("/".to_string(), |req: Request, mut res: Response| {
+            let str = req.user_agent.unwrap();
+            println!("{}", req.content_length);
+            res.send_string("ddd");
         })
         .unwrap();
     server
