@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use std::fmt::write;
 use std::path::Path;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use std::{fs, thread};
 use std::{io::Write, net::*};
 
@@ -101,7 +102,7 @@ impl Server {
         self.new_endpoint(path, RequestType::Post, handle)
     }
     ///Starts listening on the given port.
-    pub fn listen(&mut self, port: u32) -> Result<(), HttpServerError> {
+    pub fn listen(&mut self, port: u32, address: Option<String>) -> Result<(), HttpServerError> {
         if port > 65_535 {
             return Err(HttpServerError::new(
                 "Invalid port: port must be 0-65,535".to_string(),
@@ -120,7 +121,12 @@ impl Server {
         let max_content_length = self.max_content_length.clone();
 
         thread::spawn(move || {
-            let tcp: TcpListener = TcpListener::bind(format!("127.0.0.1:{}", port)).unwrap();
+            let tcp: TcpListener = TcpListener::bind(format!(
+                "{}:{}",
+                address.unwrap_or("127.0.0.1".to_string()),
+                port
+            ))
+            .unwrap();
             for stream in tcp.incoming() {
                 let routes_clone = routes.clone();
                 let static_routes_clone = static_routes.clone();
@@ -150,7 +156,6 @@ impl Server {
                     } else {
                         let mut sent: bool = false;
                         for route in routes_clone {
-                            println!("{}", route.path);
                             if route.path == req_url.path && req_url.req_type == route.req_type {
                                 let mut res = Response::new(stream.try_clone().unwrap());
                                 (route.handle)(req, res);
@@ -172,13 +177,16 @@ impl Server {
                                             res2.send_bytes(&data);
                                         }
                                         Err(err) => {
-                                            println!("There was error serving this file!");
+                                            //println!("There was error serving this file!");
                                             res2.send_code(404);
                                         }
                                     }
-
+                                    sent = true;
                                     break;
                                 }
+                            }
+                            if sent == false {
+                                res2.send_code(404);
                             }
                         }
                     }
@@ -187,5 +195,13 @@ impl Server {
             }
         });
         Ok(())
+    }
+
+    ///Locks the thread from stoping (put it in the end of the main file to keep the server running);
+    pub fn lock() {
+        let dur = Duration::from_secs(5);
+        loop {
+            std::thread::sleep(dur);
+        }
     }
 }

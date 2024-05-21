@@ -92,8 +92,8 @@ impl Response {
         let response = "HTTP/1.1 ".to_owned()
             + &code.to_string()
             + match code {
-                404 => " NOT FOUND\r\n\r\n",
-                413 => " PAYLOAD TOO LARGE\r\n\r\n",
+                404 => " NOT FOUND\r\n\r\nPAGE NOT FOUND",
+                413 => " PAYLOAD TOO LARGE\r\n\r\nPAYLOAD TOO LARGE",
                 _ => " OK\r\n\r\n",
             };
 
