@@ -55,6 +55,12 @@ server.post("/".to_string(), |req: Request, mut res: Response| {
 }).unwrap();
 ```
 
+## Create STATIC endpoint
+
+```rust
+ server.new_static("/images".to_string(), "./tests/images".to_string()).unwrap(); // The first one is the path in the browser for example: example.com/images and the second one is the exposed path from the computer(local) WARNING IT EXPOSES ONLY THE FILES IN THE DIRECTORY NOT SO IF YOU HAVE /images/dogs/cool.png YOU CANT ACCES cool.png
+```
+
 ## Response
 
 So they are four simple functions
@@ -91,7 +97,13 @@ pub struct Request {
 
 ## The final
 
-And finnally because you wanna keep the main thread running or else the server will close as soon as the code runs.
+You need to make the server actually 'listen' for requests so use this method:
+
+```rust
+   server.listen(port: u32, address: Option<String>) -> Result<(), HttpServerError>
+```
+
+And finally because you wanna keep the main thread running or else the server will close as soon as the code runs.
 <br>
 <br>
 Add this at the end of your file
