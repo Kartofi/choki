@@ -1,9 +1,12 @@
 [package]
 name = "choki"
-version = "0.0.1"
+version = "1.0.0"
 edition = "2021"
-description="A simple http server from scratch."
+description="A simple http server built from scratch. Not intended for production uses but a simple website with some query stuff can be made. (can withstand a lot of requests per second)"
+repository="https://github.com/Kartofi/choki"
+readme = "README.md"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 threadpool = "1.8.1"
+num_cpus = "1.0"

@@ -4,18 +4,16 @@ use choki::structs::{Request, Response};
 use choki::Server;
 
 fn main() {
-    let mut server = Server::new(None);
+    let mut server: Server = Server::new(Some(1024));
     server
         .get("/".to_string(), |req: Request, mut res: Response| {
-            let str = req.user_agent.unwrap();
-            let file = fs::read("./tests/index.html").unwrap();
-            res.send_bytes(&file);
+            res.send_string("HI");
         })
         .unwrap();
     server
         .post("/".to_string(), |req: Request, mut res: Response| {
             let str = req.user_agent.unwrap();
-            println!("{}", req.content_length);
+
             res.send_string("ddd");
         })
         .unwrap();

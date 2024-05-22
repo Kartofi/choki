@@ -8,6 +8,7 @@ use std::{io::Write, net::*};
 use std::io::{Error, Read};
 use structs::*;
 use threadpool::ThreadPool;
+extern crate num_cpus;
 
 pub mod structs;
 pub struct Server {
@@ -18,6 +19,9 @@ pub struct Server {
 }
 
 impl Server {
+    ///max_content_length is the max length of the request in bytes.
+    ///
+    ///For example if the max is set to 1024 but the request is 1 000 000 it will close it straight away.
     pub fn new(max_content_length: Option<usize>) -> Server {
         return Server {
             active: false,
@@ -114,7 +118,7 @@ impl Server {
             ));
         }
         self.active = true;
-        let pool: ThreadPool = ThreadPool::new(6);
+        let pool: ThreadPool = ThreadPool::new(num_cpus::get());
         let routes = self.endpoints.clone();
         let static_routes = self.static_endpoints.clone();
 
@@ -174,7 +178,7 @@ impl Server {
                                     }
                                     match fs::read(route.1 + parts[1]) {
                                         Ok(data) => {
-                                            res2.send_bytes(&data);
+                                            res2.send_bytes(&data, None);
                                         }
                                         Err(err) => {
                                             //println!("There was error serving this file!");
