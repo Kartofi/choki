@@ -144,17 +144,74 @@ impl Url {
         Ok(Url::new(path.to_string(), req_type, query))
     }
 }
+#[derive(Clone)]
+pub struct Cookie {
+    pub name: String,
+    pub value: String,
+    pub path: String,
+    pub expires: String,
+}
+impl Cookie {
+    pub fn new_simple(name: String, value: String) -> Cookie {
+        return Cookie {
+            name: name,
+            value: value,
+            path: "".to_string(),
+            expires: "".to_string(),
+        };
+    }
 
+    pub fn as_str(&self) -> String {
+        let mut cookie_str = format!("{}={}", self.name, self.value);
+
+        if !self.path.is_empty() {
+            cookie_str.push_str(&format!("; Path={}", self.path));
+        }
+
+        if !self.expires.is_empty() {
+            cookie_str.push_str(&format!("; Expires={}", self.expires));
+        }
+
+        cookie_str
+    }
+    pub fn generate_set_cookie_headers(cookies: &Vec<Cookie>) -> String {
+        cookies
+            .iter()
+            .map(|cookie| format!("\nSet-Cookie: {}", cookie.as_str()))
+            .collect()
+    }
+}
 pub struct Response {
     stream: TcpStream,
+    cookies: Vec<Cookie>,
 }
 impl Response {
     pub fn new(stream: TcpStream) -> Response {
-        return Response { stream: stream };
+        return Response {
+            stream: stream,
+            cookies: Vec::new(),
+        };
     }
+    //Deletes a cookie
+    pub fn delete_cookie(&mut self, name: &str) {
+        self.cookies.push(Cookie {
+            name: name.to_string(),
+            value: "".to_string(),
+            path: "/".to_string(),
+            expires: "Thu, 01 Jan 1970 00:00:00 GMT".to_string(),
+        });
+    }
+    //Creates/edits a cookie
+    pub fn set_cookie(&mut self, cookie: &Cookie) {
+        self.cookies.push(cookie.clone());
+    }
+
     ///Sends string as output.
     pub fn send_string(&mut self, data: &str) {
-        let response = "HTTP/1.1 200 OK\nContent-type: ".to_owned()
+        let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+        let response = "HTTP/1.1 200 OK".to_string()
+            + &cookies_set_headers
+            + "\nContent-type: "
             + ContentType::PlainText.as_str()
             + "\r\n\r\n"
             + data;
@@ -165,10 +222,14 @@ impl Response {
     }
     ///Sends json as output.
     pub fn send_json(&mut self, data: &str) {
-        let response = "HTTP/1.1 200 OK\nContent-type: ".to_owned()
+        let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+        let response = "HTTP/1.1 200 OK".to_string()
+            + &cookies_set_headers
+            + "\nContent-type: "
             + ContentType::Json.as_str()
             + "\r\n\r\n"
             + data;
+
         self.stream
             .write_all(response.as_bytes())
             .expect("Failed to write");
@@ -181,7 +242,11 @@ impl Response {
             ContentType::None
         };
         let content_type_string = format!("Content-type:{}\r\n\r\n", content_type.as_str());
+
+        let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+
         let response = "HTTP/1.1 200 OK".to_owned()
+            + &cookies_set_headers
             + if content_type != ContentType::None {
                 "\r\n\r\n"
             } else {
@@ -193,15 +258,18 @@ impl Response {
             .expect("Failed to write");
         self.stream.write_all(data).expect("Failed to write");
     }
+
+    //Sends a response code (404, 200...)
     pub fn send_code(&mut self, code: usize) {
-        let response = "HTTP/1.1 ".to_owned()
+        let mut response = "HTTP/1.1 ".to_owned()
             + &code.to_string()
             + match code {
                 404 => " NOT FOUND\r\n\r\nPAGE NOT FOUND",
                 413 => " PAYLOAD TOO LARGE\r\n\r\nPAYLOAD TOO LARGE",
                 _ => " OK\r\n\r\n",
             };
-
+        let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+        response += &cookies_set_headers;
         self.stream
             .write_all(response.as_bytes())
             .expect("Failed to write");
@@ -210,6 +278,7 @@ impl Response {
 
 pub struct Request {
     pub query: HashMap<String, String>,
+    pub cookies: Vec<Cookie>,
     pub user_agent: Option<String>,
     pub content_length: usize,
 }
@@ -217,16 +286,18 @@ impl Request {
     pub fn new(
         query: HashMap<String, String>,
         user_agent: Option<String>,
+        cookies: Vec<Cookie>,
         content_length: usize,
     ) -> Request {
         return Request {
             query: query,
             user_agent: user_agent,
+            cookies: cookies,
             content_length: content_length,
         };
     }
     pub fn parse(lines: Vec<&str>, query: Option<HashMap<String, String>>) -> Request {
-        let mut req = Request::new(query.unwrap_or_default(), None, 0);
+        let mut req = Request::new(query.unwrap_or_default(), None, Vec::new(), 0);
         for line in lines {
             if line.starts_with("User-Agent:") {
                 let parts: Vec<&str> = line.split("Agent: ").collect();
@@ -239,6 +310,20 @@ impl Request {
                         Ok(res) => res,
                         Err(err) => 0,
                     };
+                }
+            } else if line.starts_with("Cookie:") {
+                let parts: Vec<&str> = line.split("Cookie: ").collect();
+                if parts.len() == 2 {
+                    let cookies: Vec<&str> = parts[1].split("; ").collect();
+                    for cookie in cookies {
+                        let cookie_parts: Vec<&str> = cookie.split("=").collect();
+                        if cookie_parts.len() == 2 {
+                            req.cookies.push(Cookie::new_simple(
+                                cookie_parts[0].to_string(),
+                                cookie_parts[1].to_string(),
+                            ));
+                        }
+                    }
                 }
             }
         }

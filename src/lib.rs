@@ -162,6 +162,7 @@ impl Server {
                         for route in routes_clone {
                             if route.path == req_url.path && req_url.req_type == route.req_type {
                                 let mut res = Response::new(stream.try_clone().unwrap());
+
                                 (route.handle)(req, res);
                                 sent = true;
                                 break;

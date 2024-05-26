@@ -1,12 +1,14 @@
 use std::fs;
 
-use choki::structs::{Request, Response};
+use choki::structs::{Cookie, Request, Response};
 use choki::Server;
 
 fn main() {
     let mut server: Server = Server::new(Some(1024));
     server
         .get("/".to_string(), |req: Request, mut res: Response| {
+            println!("{}", req.cookies[0].as_str());
+
             res.send_string("HI");
         })
         .unwrap();

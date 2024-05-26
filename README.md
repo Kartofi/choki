@@ -15,7 +15,7 @@ cargo add choki
 or add it in your Cargo.toml
 
 ```powershell
-choki = "1.0.0"
+choki = "1.0.3"
 ```
 
 # 💡・Features
@@ -79,6 +79,26 @@ res.send_json(&mut self, data: &str) // sends json as response
 
 ```rust
 res.send_code(&mut self, code: usize) // sends a HTTP response code (404,200...)
+```
+
+as of 1.0.3 you can set or delete cookies and ofc read them.
+
+```rust
+pub struct Cookie {
+    pub name: String,
+    pub value: String,
+    pub path: String,
+    pub expires: String,
+}
+```
+
+You can read cookies using req.cookies (stored as a vec)
+
+You can set/delete them using
+
+```rust
+res.set_cookie(cookie: &Cookie);
+res.delete_cookie(name: &str);
 ```
 
 ## Request
