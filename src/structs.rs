@@ -241,7 +241,7 @@ impl Response {
         } else {
             ContentType::None
         };
-        let content_type_string = format!("Content-type:{}\r\n\r\n", content_type.as_str());
+        let content_type_string = format!("\nContent-type:{}\r\n\r\n", content_type.as_str());
 
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
 
