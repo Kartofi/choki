@@ -11,23 +11,26 @@ use threadpool::ThreadPool;
 extern crate num_cpus;
 
 pub mod structs;
-pub struct Server {
+pub struct Server<T: Clone + std::marker::Send + 'static> {
     active: bool,
     pub max_content_length: usize,
-    pub endpoints: Vec<EndPoint>,
+    pub endpoints: Vec<EndPoint<T>>,
     pub static_endpoints: HashMap<String, String>,
+
+    pub public_var: Option<T>,
 }
 
-impl Server {
+impl<T: Clone + std::marker::Send + 'static> Server<T> {
     ///max_content_length is the max length of the request in bytes.
     ///
     ///For example if the max is set to 1024 but the request is 1 000 000 it will close it straight away.
-    pub fn new(max_content_length: Option<usize>) -> Server {
+    pub fn new(max_content_length: Option<usize>, public_var: Option<T>) -> Server<T> {
         return Server {
             active: false,
             max_content_length: max_content_length.unwrap_or_default(),
             endpoints: Vec::new(),
             static_endpoints: HashMap::new(),
+            public_var: public_var,
         };
     }
     ///Creates a new static url
@@ -65,7 +68,7 @@ impl Server {
         &mut self,
         mut path: String,
         req_type: RequestType,
-        handle: fn(req: Request, res: Response),
+        handle: fn(req: Request, res: Response, public_var: Option<T>),
     ) -> Result<(), HttpServerError> {
         if self.active == true {
             return Err(HttpServerError::new(
@@ -92,7 +95,7 @@ impl Server {
     pub fn get(
         &mut self,
         mut path: String,
-        handle: fn(req: Request, res: Response),
+        handle: fn(req: Request, res: Response, public_var: Option<T>),
     ) -> Result<(), HttpServerError> {
         self.new_endpoint(path, RequestType::Get, handle)
     }
@@ -101,7 +104,7 @@ impl Server {
     pub fn post(
         &mut self,
         mut path: String,
-        handle: fn(req: Request, res: Response),
+        handle: fn(req: Request, res: Response, public_var: Option<T>),
     ) -> Result<(), HttpServerError> {
         self.new_endpoint(path, RequestType::Post, handle)
     }
@@ -123,6 +126,7 @@ impl Server {
         let static_routes = self.static_endpoints.clone();
 
         let max_content_length = self.max_content_length.clone();
+        let public_var = self.public_var.clone();
 
         thread::spawn(move || {
             let tcp: TcpListener = TcpListener::bind(format!(
@@ -135,6 +139,7 @@ impl Server {
                 let routes_clone = routes.clone();
                 let static_routes_clone = static_routes.clone();
                 let max_content_length_clone = max_content_length.clone();
+                let public_var_clone = public_var.clone();
 
                 pool.execute(move || {
                     let mut stream: TcpStream = stream.unwrap();
@@ -163,7 +168,7 @@ impl Server {
                             if route.path == req_url.path && req_url.req_type == route.req_type {
                                 let mut res = Response::new(stream.try_clone().unwrap());
 
-                                (route.handle)(req, res);
+                                (route.handle)(req, res, public_var_clone);
                                 sent = true;
                                 break;
                             }
@@ -203,6 +208,7 @@ impl Server {
     }
 
     ///Locks the thread from stoping (put it in the end of the main file to keep the server running);
+
     pub fn lock() {
         let dur = Duration::from_secs(5);
         loop {

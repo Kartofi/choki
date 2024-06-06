@@ -331,17 +331,18 @@ impl Request {
     }
 }
 #[derive(Clone)]
-pub struct EndPoint {
+pub struct EndPoint<T: Clone + std::marker::Send + 'static> {
     pub path: String,
     pub req_type: RequestType,
-    pub handle: fn(req: Request, res: Response),
+    pub handle: fn(req: Request, res: Response, public_var: Option<T>),
 }
-impl EndPoint {
+
+impl<T: Clone + std::marker::Send + 'static> EndPoint<T> {
     pub fn new(
         path: String,
         req_type: RequestType,
-        handle: fn(req: Request, res: Response),
-    ) -> EndPoint {
+        handle: fn(req: Request, res: Response, public_var: Option<T>),
+    ) -> EndPoint<T> {
         return EndPoint {
             path: path,
             req_type: req_type,

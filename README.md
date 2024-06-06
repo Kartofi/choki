@@ -15,7 +15,7 @@ cargo add choki
 or add it in your Cargo.toml
 
 ```powershell
-choki = "1.0.4"
+choki = "1.0.5"
 ```
 
 # 💡・Features
@@ -34,7 +34,7 @@ use choki::Server;
 ## Create a object from the class called `Server`
 
 ```rust
-  let mut server: Server = Server::new(Some(1024)); // you can also type None if you dont want any restrictions
+  let mut server: Server<u8> = Server::new(Some(1024),None); // you can also type None if you dont want any restrictions
 ```
 
 The number in the () is the max content length of the request or in simple terms the max size of the request sent from the client.
@@ -42,7 +42,7 @@ The number in the () is the max content length of the request or in simple terms
 ## Create GET endpoint
 
 ```rust
-server.get("/".to_string(), |req: Request, mut res: Response| {
+server.get("/".to_string(), |req: Request, mut res: Response, public_var: Option<u8>| {
     res.send_string("HI");
 }).unwrap();
 ```
@@ -50,7 +50,7 @@ server.get("/".to_string(), |req: Request, mut res: Response| {
 ## Create POST endpoint
 
 ```rust
-server.post("/".to_string(), |req: Request, mut res: Response| {
+server.post("/".to_string(), |req: Request, mut res: Response, public_var: Option<u8>| {
     res.send_string("HI");
 }).unwrap();
 ```
