@@ -156,7 +156,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                     }
                     let req_url = Url::parse(lines[0]).unwrap();
 
-                    let req = Request::parse(lines, Some(req_url.query));
+                    let mut req = Request::parse(lines, Some(req_url.query), None);
 
                     if max_content_length_clone > 0 && req.content_length > max_content_length_clone
                     {
@@ -165,8 +165,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                     } else {
                         let mut sent: bool = false;
                         for route in routes_clone {
-                            if route.path == req_url.path && req_url.req_type == route.req_type {
+                            let match_pattern =
+                                Url::match_patern(&req_url.path.clone(), &route.path.clone());
+                            if match_pattern.0 == true && req_url.req_type == route.req_type {
                                 let mut res = Response::new(stream.try_clone().unwrap());
+                                req.params = match_pattern.1;
 
                                 (route.handle)(req, res, public_var_clone);
                                 sent = true;

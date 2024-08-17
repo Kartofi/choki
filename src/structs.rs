@@ -121,10 +121,11 @@ impl Url {
 
         let mut path: &str = parts[1];
         let mut query: HashMap<String, String> = HashMap::new();
-        if path.contains("?") == true && path.contains("=") == true {
+
+        if path.contains("?") == true {
             let parts: Vec<&str> = path.split("?").collect();
             path = parts[0];
-            if parts[1].len() > 2 {
+            if parts[1].len() > 2 && path.contains("=") == true {
                 if parts[1].contains("&") {
                     let queries_string: Vec<&str> = parts[1].split("&").collect();
                     for query_string in queries_string {
@@ -141,7 +142,33 @@ impl Url {
                 }
             }
         }
+
         Ok(Url::new(path.to_string(), req_type, query))
+    }
+    pub fn match_patern(input: &str, pattern: &str) -> (bool, HashMap<String, String>) {
+        let mut parts_input: Vec<&str> = input.split('/').filter(|a| a.len() > 0).collect();
+        let mut parts_pattern: Vec<&str> = pattern.split('/').filter(|a| a.len() > 0).collect();
+
+        if parts_input.len() != parts_pattern.len() {
+            return (false, HashMap::new());
+        }
+        if parts_input.len() == 0 && parts_pattern.len() == 0 {
+            return (true, HashMap::new());
+        }
+        let mut params: HashMap<String, String> = HashMap::new();
+        for i in 0..parts_input.len() {
+            if parts_input[i] != parts_pattern[i] && parts_pattern[i].contains("[") == false {
+                return (false, HashMap::new());
+            }
+            if parts_input[i] != parts_pattern[i] {
+                let name: String = parts_pattern[i]
+                    .chars()
+                    .filter(|&c| c != '[' && c != ']')
+                    .collect();
+                params.insert(name, parts_input[i].to_string());
+            }
+        }
+        return (true, params);
     }
 }
 #[derive(Clone)]
@@ -328,6 +355,7 @@ impl Response {
 
 pub struct Request {
     pub query: HashMap<String, String>,
+    pub params: HashMap<String, String>,
     pub cookies: Vec<Cookie>,
     pub user_agent: Option<String>,
     pub content_length: usize,
@@ -335,19 +363,31 @@ pub struct Request {
 impl Request {
     pub fn new(
         query: HashMap<String, String>,
+        params: HashMap<String, String>,
         user_agent: Option<String>,
         cookies: Vec<Cookie>,
         content_length: usize,
     ) -> Request {
         return Request {
             query: query,
+            params: params,
             user_agent: user_agent,
             cookies: cookies,
             content_length: content_length,
         };
     }
-    pub fn parse(lines: Vec<&str>, query: Option<HashMap<String, String>>) -> Request {
-        let mut req = Request::new(query.unwrap_or_default(), None, Vec::new(), 0);
+    pub fn parse(
+        lines: Vec<&str>,
+        query: Option<HashMap<String, String>>,
+        params: Option<HashMap<String, String>>,
+    ) -> Request {
+        let mut req = Request::new(
+            query.unwrap_or_default(),
+            params.unwrap_or_default(),
+            None,
+            Vec::new(),
+            0,
+        );
         for line in lines {
             if line.starts_with("User-Agent:") {
                 let parts: Vec<&str> = line.split("Agent: ").collect();
@@ -393,10 +433,17 @@ impl<T: Clone + std::marker::Send + 'static> EndPoint<T> {
         req_type: RequestType,
         handle: fn(req: Request, res: Response, public_var: Option<T>),
     ) -> EndPoint<T> {
+        if count_char_occurrences(&path, '[') != count_char_occurrences(&path, ']') {
+            panic!("Syntax error in pattern: {}", path)
+        }
         return EndPoint {
             path: path,
             req_type: req_type,
             handle: handle,
         };
     }
+}
+
+fn count_char_occurrences(s: &str, target: char) -> usize {
+    s.chars().filter(|&c| c == target).count()
 }

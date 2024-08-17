@@ -7,9 +7,9 @@ fn main() {
     let mut server: Server<u8> = Server::new(Some(1024), None);
     server
         .get(
-            "/".to_string(),
+            "/watch/[id]".to_string(),
             |req: Request, mut res: Response, public_var: Option<u8>| {
-                println!("{}", req.cookies[0].as_str());
+                println!("{}", req.params.get("id").unwrap());
 
                 res.send_string("HI");
             },

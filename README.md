@@ -61,6 +61,17 @@ server.post("/".to_string(), |req: Request, mut res: Response, public_var: Optio
  server.new_static("/images".to_string(), "./tests/images".to_string()).unwrap(); // The first one is the path in the browser for example: example.com/images and the second one is the exposed path from the computer(local)
 ```
 
+## Create Get/Set endpoint with params
+
+As of 1.0.8 choki supports params
+
+```rust
+ server.post("/search/[id]".to_string(), |req: Request, mut res: Response, public_var: Option<u8>| {
+    println!("{}", req.params.get("id").unwrap()); // if i make request to /search/pizza this will print pizza
+    res.send_string("HI");
+}).unwrap();
+```
+
 ## Response
 
 So they are four simple functions
