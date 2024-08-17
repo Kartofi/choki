@@ -201,7 +201,7 @@ impl Header {
         cookie_str
     }
     pub fn generate_headers(headers: &Vec<Header>) -> String {
-        let mut headers_str = "".to_string();
+        let mut headers_str = "\n".to_string();
         for header in headers {
             headers_str.push_str(&header.as_str());
             headers_str.push_str("\n");
