@@ -15,7 +15,7 @@ cargo add choki
 or add it in your Cargo.toml
 
 ```powershell
-choki = "1.0.5"
+choki = "1.0.6"
 ```
 
 # 💡・Features
@@ -101,6 +101,22 @@ res.set_cookie(cookie: &Cookie);
 res.delete_cookie(name: &str);
 ```
 
+as of 1.0.6 you can set or delete headers and ofc read them.
+
+```rust
+pub struct Header {
+    pub name: String,
+    pub value: String,
+}
+```
+
+You can set/delete them using
+
+```rust
+res.set_header(header: &Header);
+res.delete_cookie(name: &str);
+```
+
 ## Request
 
 When you create an endpoint you have Request and Response.
@@ -129,7 +145,7 @@ And finally because you wanna keep the main thread running or else the server wi
 Add this at the end of your file
 
 ```rust
-Server::lock();
+  Server::<i32>::lock();
 ```
 
 Also in the src folder there is a main.rs file which can be used as an example.

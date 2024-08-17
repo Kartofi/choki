@@ -181,15 +181,46 @@ impl Cookie {
             .collect()
     }
 }
+
+#[derive(Clone)]
+pub struct Header {
+    pub name: String,
+    pub value: String,
+}
+impl Header {
+    pub fn new(name: String, value: String) -> Header {
+        return Header {
+            name: name,
+            value: value,
+        };
+    }
+
+    pub fn as_str(&self) -> String {
+        let mut cookie_str = format!("{}: {}", self.name, self.value);
+
+        cookie_str
+    }
+    pub fn generate_headers(headers: &Vec<Header>) -> String {
+        let mut headers_str = "".to_string();
+        for header in headers {
+            headers_str.push_str(&header.as_str());
+            headers_str.push_str("\n");
+        }
+        headers_str
+    }
+}
+
 pub struct Response {
     stream: TcpStream,
     cookies: Vec<Cookie>,
+    headers: Vec<Header>,
 }
 impl Response {
     pub fn new(stream: TcpStream) -> Response {
         return Response {
             stream: stream,
             cookies: Vec::new(),
+            headers: Vec::new(),
         };
     }
     //Deletes a cookie
@@ -205,11 +236,24 @@ impl Response {
     pub fn set_cookie(&mut self, cookie: &Cookie) {
         self.cookies.push(cookie.clone());
     }
-
+    //Create/Delete Header
+    pub fn set_header(&mut self, header: &Header) {
+        self.headers.push(header.clone());
+    }
+    pub fn delete_header(&mut self, name: &str) {
+        for i in 0..self.headers.len() {
+            if self.headers[i].name == name {
+                self.headers.remove(i);
+                break;
+            }
+        }
+    }
     ///Sends string as output.
     pub fn send_string(&mut self, data: &str) {
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+        let headers_set_headers = Header::generate_headers(&self.headers);
         let response = "HTTP/1.1 200 OK".to_string()
+            + &headers_set_headers
             + &cookies_set_headers
             + "\nContent-type: "
             + ContentType::PlainText.as_str()
@@ -223,7 +267,9 @@ impl Response {
     ///Sends json as output.
     pub fn send_json(&mut self, data: &str) {
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+        let headers_set_headers = Header::generate_headers(&self.headers);
         let response = "HTTP/1.1 200 OK".to_string()
+            + &headers_set_headers
             + &cookies_set_headers
             + "\nContent-type: "
             + ContentType::Json.as_str()
@@ -244,8 +290,10 @@ impl Response {
         let content_type_string = format!("\nContent-type:{}\r\n\r\n", content_type.as_str());
 
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+        let headers_set_headers = Header::generate_headers(&self.headers);
 
         let response = "HTTP/1.1 200 OK".to_owned()
+            + &headers_set_headers
             + &cookies_set_headers
             + if content_type != ContentType::None {
                 "\r\n\r\n"
@@ -269,7 +317,9 @@ impl Response {
                 _ => " OK\r\n\r\n",
             };
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+        let headers_set_headers = Header::generate_headers(&self.headers);
         response += &cookies_set_headers;
+        response += &headers_set_headers;
         self.stream
             .write_all(response.as_bytes())
             .expect("Failed to write");
