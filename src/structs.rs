@@ -287,9 +287,10 @@ impl Response {
             + "\r\n\r\n"
             + data;
 
-        self.stream
-            .write_all(response.as_bytes())
-            .expect("Failed to write");
+        match self.stream.write_all(response.as_bytes()) {
+            Ok(_res) => {}
+            Err(_e) => {}
+        }
     }
     ///Sends json as output.
     pub fn send_json(&mut self, data: &str) {
@@ -303,9 +304,10 @@ impl Response {
             + "\r\n\r\n"
             + data;
 
-        self.stream
-            .write_all(response.as_bytes())
-            .expect("Failed to write");
+        match self.stream.write_all(response.as_bytes()) {
+            Ok(_res) => {}
+            Err(_e) => {}
+        }
     }
     //Sends raw bytes
     pub fn send_bytes(&mut self, data: &[u8], content_type: Option<ContentType>) {
@@ -328,10 +330,14 @@ impl Response {
                 &content_type_string
             };
 
-        self.stream
-            .write_all(response.as_bytes())
-            .expect("Failed to write");
-        self.stream.write_all(data).expect("Failed to write");
+        match self.stream.write_all(response.as_bytes()) {
+            Ok(_res) => {}
+            Err(_e) => {}
+        }
+        match self.stream.write_all(data) {
+            Ok(_res) => {}
+            Err(_e) => {}
+        }
     }
 
     //Sends a response code (404, 200...)
@@ -347,9 +353,10 @@ impl Response {
         let headers_set_headers = Header::generate_headers(&self.headers);
         response += &cookies_set_headers;
         response += &headers_set_headers;
-        self.stream
-            .write_all(response.as_bytes())
-            .expect("Failed to write");
+        match self.stream.write_all(response.as_bytes()) {
+            Ok(_res) => {}
+            Err(_e) => {}
+        }
     }
 }
 

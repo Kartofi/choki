@@ -4,7 +4,7 @@ version = 3
 
 [[package]]
 name = "choki"
-version = "1.0.8"
+version = "1.0.9"
 dependencies = [
  "num_cpus",
  "threadpool",
