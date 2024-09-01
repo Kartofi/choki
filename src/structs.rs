@@ -316,24 +316,27 @@ impl Response {
         } else {
             ContentType::None
         };
-        let content_type_string = format!("\nContent-type:{}\r\n\r\n", content_type.as_str());
+        let content_type_string = format!("\nContent-type: {}", content_type.as_str());
+        let content_length_string = format!("\nContent-length: {}\r\n\r\n", data.len());
 
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
         let headers_set_headers = Header::generate_headers(&self.headers);
 
         let response = "HTTP/1.1 200 OK".to_owned()
-            + &headers_set_headers
-            + &cookies_set_headers
-            + if content_type != ContentType::None {
-                "\r\n\r\n"
+            + &headers_set_headers.trim()
+            + if content_type == ContentType::None {
+                ""
             } else {
                 &content_type_string
-            };
+            }
+            + &content_length_string
+            + &cookies_set_headers;
 
         match self.stream.write_all(response.as_bytes()) {
             Ok(_res) => {}
             Err(_e) => {}
         }
+
         match self.stream.write_all(data) {
             Ok(_res) => {}
             Err(_e) => {}
