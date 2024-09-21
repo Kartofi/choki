@@ -131,7 +131,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         thread::spawn(move || {
             let tcp: TcpListener = TcpListener::bind(format!(
                 "{}:{}",
-                address.unwrap_or("127.0.0.1".to_string()),
+                address.unwrap_or("0.0.0.0".to_string()),
                 port
             ))
             .unwrap();
