@@ -1,4 +1,4 @@
-use std::{ collections::HashMap, io::Write, net::TcpStream, string };
+use std::{collections::HashMap, io::Write, net::TcpStream, string};
 
 #[derive(Clone, PartialEq)]
 pub enum RequestType {
@@ -148,14 +148,8 @@ impl Url {
         Ok(Url::new(path.to_string(), req_type, query))
     }
     pub fn match_patern(input: &str, pattern: &str) -> (bool, HashMap<String, String>) {
-        let mut parts_input: Vec<&str> = input
-            .split('/')
-            .filter(|a| a.len() > 0)
-            .collect();
-        let mut parts_pattern: Vec<&str> = pattern
-            .split('/')
-            .filter(|a| a.len() > 0)
-            .collect();
+        let mut parts_input: Vec<&str> = input.split('/').filter(|a| a.len() > 0).collect();
+        let mut parts_pattern: Vec<&str> = pattern.split('/').filter(|a| a.len() > 0).collect();
 
         if parts_input.len() != parts_pattern.len() {
             return (false, HashMap::new());
@@ -287,14 +281,13 @@ impl Response {
     pub fn send_string(&mut self, data: &str) {
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
         let headers_set_headers = Header::generate_headers(&self.headers);
-        let response =
-            "HTTP/1.1 200 OK".to_string() +
-            &headers_set_headers +
-            &cookies_set_headers +
-            "Content-type: " +
-            ContentType::PlainText.as_str() +
-            "\r\n\r\n" +
-            data;
+        let response = "HTTP/1.1 200 OK".to_string()
+            + &headers_set_headers
+            + &cookies_set_headers
+            + "Content-type: "
+            + ContentType::PlainText.as_str()
+            + "\r\n\r\n"
+            + data;
 
         match self.stream.write_all(response.as_bytes()) {
             Ok(_res) => {}
@@ -305,14 +298,13 @@ impl Response {
     pub fn send_json(&mut self, data: &str) {
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
         let headers_set_headers = Header::generate_headers(&self.headers);
-        let response =
-            "HTTP/1.1 200 OK".to_string() +
-            &headers_set_headers +
-            &cookies_set_headers +
-            "Content-type: " +
-            ContentType::Json.as_str() +
-            "\r\n\r\n" +
-            data;
+        let response = "HTTP/1.1 200 OK".to_string()
+            + &headers_set_headers
+            + &cookies_set_headers
+            + "Content-type: "
+            + ContentType::Json.as_str()
+            + "\r\n\r\n"
+            + data;
 
         match self.stream.write_all(response.as_bytes()) {
             Ok(_res) => {}
@@ -332,12 +324,15 @@ impl Response {
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
         let headers_set_headers = Header::generate_headers(&self.headers);
 
-        let response =
-            "HTTP/1.1 200 OK".to_owned() +
-            &headers_set_headers.trim() +
-            (if content_type == ContentType::None { "" } else { &content_type_string }) +
-            &content_length_string +
-            &cookies_set_headers;
+        let response = "HTTP/1.1 200 OK".to_owned()
+            + &headers_set_headers.trim()
+            + (if content_type == ContentType::None {
+                ""
+            } else {
+                &content_type_string
+            })
+            + &content_length_string
+            + &cookies_set_headers;
 
         match self.stream.write_all(response.as_bytes()) {
             Ok(_res) => {}
@@ -352,10 +347,9 @@ impl Response {
 
     //Sends a response code (404, 200...)
     pub fn send_code(&mut self, code: usize) {
-        let mut response =
-            "HTTP/1.1 ".to_owned() +
-            &code.to_string() +
-            (match code {
+        let mut response = "HTTP/1.1 ".to_owned()
+            + &code.to_string()
+            + (match code {
                 404 => " NOT FOUND\r\n\r\nPAGE NOT FOUND",
                 413 => " PAYLOAD TOO LARGE\r\n\r\nPAYLOAD TOO LARGE",
                 _ => " OK\r\n\r\n",
@@ -384,7 +378,7 @@ impl Request {
         params: HashMap<String, String>,
         user_agent: Option<String>,
         cookies: Vec<Cookie>,
-        content_length: usize
+        content_length: usize,
     ) -> Request {
         return Request {
             query: query,
@@ -397,14 +391,14 @@ impl Request {
     pub fn parse(
         lines: Vec<&str>,
         query: Option<HashMap<String, String>>,
-        params: Option<HashMap<String, String>>
+        params: Option<HashMap<String, String>>,
     ) -> Request {
         let mut req = Request::new(
             query.unwrap_or_default(),
             params.unwrap_or_default(),
             None,
             Vec::new(),
-            0
+            0,
         );
         for line in lines {
             if line.starts_with("User-Agent:") {
@@ -426,12 +420,10 @@ impl Request {
                     for cookie in cookies {
                         let cookie_parts: Vec<&str> = cookie.split("=").collect();
                         if cookie_parts.len() == 2 {
-                            req.cookies.push(
-                                Cookie::new_simple(
-                                    cookie_parts[0].to_string(),
-                                    cookie_parts[1].to_string()
-                                )
-                            );
+                            req.cookies.push(Cookie::new_simple(
+                                cookie_parts[0].to_string(),
+                                cookie_parts[1].to_string(),
+                            ));
                         }
                     }
                 }
@@ -451,7 +443,7 @@ impl<T: Clone + std::marker::Send + 'static> EndPoint<T> {
     pub fn new(
         path: String,
         req_type: RequestType,
-        handle: fn(req: Request, res: Response, public_var: Option<T>)
+        handle: fn(req: Request, res: Response, public_var: Option<T>),
     ) -> EndPoint<T> {
         if count_char_occurrences(&path, '[') != count_char_occurrences(&path, ']') {
             panic!("Syntax error in pattern: {}", path);
@@ -465,7 +457,5 @@ impl<T: Clone + std::marker::Send + 'static> EndPoint<T> {
 }
 
 fn count_char_occurrences(s: &str, target: char) -> usize {
-    s.chars()
-        .filter(|&c| c == target)
-        .count()
+    s.chars().filter(|&c| c == target).count()
 }
