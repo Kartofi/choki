@@ -231,9 +231,12 @@ impl Header {
     }
     pub fn generate_headers(headers: &Vec<Header>) -> String {
         let mut headers_str = "\n".to_string();
+        let last_header = headers.last().unwrap().name.clone();
         for header in headers {
             headers_str.push_str(&header.as_str());
-            headers_str.push_str("\n");
+            if last_header != header.name {
+                headers_str.push_str("\n");
+            }
         }
         headers_str
     }
@@ -325,7 +328,7 @@ impl Response {
         let headers_set_headers = Header::generate_headers(&self.headers);
 
         let response = "HTTP/1.1 200 OK".to_owned()
-            + &headers_set_headers.trim()
+            + &headers_set_headers
             + (if content_type == ContentType::None {
                 ""
             } else {
@@ -333,7 +336,7 @@ impl Response {
             })
             + &content_length_string
             + &cookies_set_headers;
-
+        println!("{}", response);
         match self.stream.write_all(response.as_bytes()) {
             Ok(_res) => {}
             Err(_e) => {}

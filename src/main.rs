@@ -31,7 +31,7 @@ fn main() {
             |req: Request, mut res: Response, public_var: Option<u8>| {
                 println!("{}", req.query.len());
                 res.set_header(&Header::new("naruto".to_string(), "value".to_string()));
-                res.send_string("ddd");
+                res.send_bytes("ddd".as_bytes(), None);
             },
         )
         .unwrap();
