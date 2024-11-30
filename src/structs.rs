@@ -231,6 +231,9 @@ impl Header {
     }
     pub fn generate_headers(headers: &Vec<Header>) -> String {
         let mut headers_str = "\n".to_string();
+        if headers.len() == 0 {
+            return headers_str;
+        }
         let last_header = headers.last().unwrap().name.clone();
         for header in headers {
             headers_str.push_str(&header.as_str());
