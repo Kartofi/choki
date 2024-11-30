@@ -232,7 +232,7 @@ impl Header {
     pub fn generate_headers(headers: &Vec<Header>) -> String {
         let mut headers_str = "\n".to_string();
         if headers.len() == 0 {
-            return headers_str;
+            return "".to_string();
         }
         let last_header = headers.last().unwrap().name.clone();
         for header in headers {
@@ -339,7 +339,7 @@ impl Response {
             })
             + &content_length_string
             + &cookies_set_headers;
-        println!("{}", response);
+
         match self.stream.write_all(response.as_bytes()) {
             Ok(_res) => {}
             Err(_e) => {}
