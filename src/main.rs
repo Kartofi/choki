@@ -1,23 +1,22 @@
 use std::fs;
+use std::io::Write;
 
 use choki::structs::{Cookie, Header, Request, Response};
 use choki::Server;
 
 fn main() {
-    let mut server: Server<u8> = Server::new(Some(1024), None);
+    let mut server: Server<u8> = Server::new(Some(10_000_000), None);
     server
         .get(
-            "/watch/[id]".to_string(),
+            "/watch/[id]",
             |req: Request, mut res: Response, public_var: Option<u8>| {
-                println!("{}", req.params.get("id").unwrap());
-
                 res.send_string("HI");
             },
         )
         .unwrap();
     server
         .post(
-            "/".to_string(),
+            "/",
             |req: Request, mut res: Response, public_var: Option<u8>| {
                 let str = req.user_agent.unwrap();
 
@@ -26,18 +25,22 @@ fn main() {
         )
         .unwrap();
     server
-        .get(
-            "/".to_string(),
+        .post(
+            "/filetest",
             |req: Request, mut res: Response, public_var: Option<u8>| {
-                println!("{}", req.query.len());
-                res.set_header(&Header::new("naruto".to_string(), "value".to_string()));
-                res.send_bytes("ddd".as_bytes(), None);
+                let str = req.user_agent.unwrap();
             },
         )
         .unwrap();
     server
-        .new_static("/images".to_string(), "./tests/static".to_string())
+        .get(
+            "/",
+            |req: Request, mut res: Response, public_var: Option<u8>| {
+                res.send_string("111111111111111111112222222222222222222dddddddddddddddddddddddddddddddddddddddd");
+            },
+        )
         .unwrap();
+    server.new_static("/images", "./tests/static").unwrap();
     server.listen(3000, None).unwrap();
     Server::<i32>::lock();
 }

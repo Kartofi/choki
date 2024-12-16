@@ -35,7 +35,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     }
     ///Creates a new static url
     /// For example a folder named "images" on path /images every image in that folder will be exposed like "/images/example.png"
-    pub fn new_static(&mut self, mut path: String, folder: String) -> Result<(), HttpServerError> {
+    pub fn new_static(&mut self, path: &str, folder: &str) -> Result<(), HttpServerError> {
         if self.active == true {
             return Err(HttpServerError::new(
                 "Server is already running!".to_string(),
@@ -48,7 +48,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 "Folder does not exist or the path provided is a file!".to_string(),
             ));
         }
-
+        let mut path = path.to_owned();
         if self.endpoints.len() > 0
             && self
                 .endpoints
@@ -61,12 +61,12 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         if path.len() > 1 && path.ends_with("/") {
             path.remove(path.len() - 1);
         }
-        self.static_endpoints.insert(path, folder);
+        self.static_endpoints.insert(path, folder.to_owned());
         Ok(())
     }
     fn new_endpoint(
         &mut self,
-        mut path: String,
+        path: &str,
         req_type: RequestType,
         handle: fn(req: Request, res: Response, public_var: Option<T>),
     ) -> Result<(), HttpServerError> {
@@ -75,6 +75,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 "Server is already running!".to_string(),
             ));
         }
+        let mut path = path.to_owned();
         if self.endpoints.len() > 0
             && self
                 .endpoints
@@ -94,7 +95,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     ///Creates a new GET endpoint
     pub fn get(
         &mut self,
-        mut path: String,
+        path: &str,
         handle: fn(req: Request, res: Response, public_var: Option<T>),
     ) -> Result<(), HttpServerError> {
         self.new_endpoint(path, RequestType::Get, handle)
@@ -103,13 +104,13 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     ///Creates a new POST endpoint
     pub fn post(
         &mut self,
-        mut path: String,
+        path: &str,
         handle: fn(req: Request, res: Response, public_var: Option<T>),
     ) -> Result<(), HttpServerError> {
         self.new_endpoint(path, RequestType::Post, handle)
     }
     ///Starts listening on the given port.
-    pub fn listen(&mut self, port: u32, address: Option<String>) -> Result<(), HttpServerError> {
+    pub fn listen(&mut self, port: u32, address: Option<&str>) -> Result<(), HttpServerError> {
         if port > 65_535 {
             return Err(HttpServerError::new(
                 "Invalid port: port must be 0-65,535".to_string(),
@@ -128,13 +129,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         let max_content_length = self.max_content_length.clone();
         let public_var = self.public_var.clone();
 
+        let address = address.unwrap_or("0.0.0.0").to_owned();
+
         thread::spawn(move || {
-            let tcp: TcpListener = TcpListener::bind(format!(
-                "{}:{}",
-                address.unwrap_or("0.0.0.0".to_string()),
-                port
-            ))
-            .unwrap();
+            let tcp: TcpListener = TcpListener::bind(format!("{}:{}", address, port)).unwrap();
+
             for stream in tcp.incoming() {
                 let routes_clone = routes.clone();
                 let static_routes_clone = static_routes.clone();
@@ -144,9 +143,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 pool.execute(move || {
                     let mut stream: TcpStream = stream.unwrap();
 
-                    let mut buffer = [0; 1024];
+                    let mut buffer: [u8; 1024] = [0; 1024];
 
-                    stream.read(&mut buffer).expect("Failed to read");
+                    stream
+                        .read(&mut buffer)
+                        .expect("Failed to read from stream");
 
                     let string_req = String::from_utf8_lossy(&buffer);
 
@@ -157,10 +158,12 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                     let req_url = Url::parse(lines[0]).unwrap();
 
                     let mut req = Request::parse(lines, Some(req_url.query), None);
+                    let content_encoding = req.content_encoding.clone();
+                    let mut res =
+                        Response::new(stream.try_clone().unwrap(), content_encoding.clone());
 
                     if max_content_length_clone > 0 && req.content_length > max_content_length_clone
                     {
-                        let mut res = Response::new(stream.try_clone().unwrap());
                         res.send_code(413);
                     } else {
                         let mut sent: bool = false;
@@ -168,7 +171,6 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                             let match_pattern =
                                 Url::match_patern(&req_url.path.clone(), &route.path.clone());
                             if match_pattern.0 == true && req_url.req_type == route.req_type {
-                                let mut res = Response::new(stream.try_clone().unwrap());
                                 req.params = match_pattern.1;
 
                                 (route.handle)(req, res, public_var_clone);
@@ -177,7 +179,8 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                             }
                         }
                         if sent == false {
-                            let mut res2 = Response::new(stream.try_clone().unwrap());
+                            let mut res2 =
+                                Response::new(stream.try_clone().unwrap(), content_encoding);
 
                             for route in static_routes_clone {
                                 if req_url.path.starts_with(&route.0) {

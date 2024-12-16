@@ -1,9 +1,46 @@
-use std::{collections::HashMap, io::Write, net::TcpStream, string};
+use std::{collections::HashMap, io::Write, net::TcpStream, string, time::Instant, vec};
+
+use flate2::{write::GzEncoder, Compression};
 
 #[derive(Clone, PartialEq)]
 pub enum RequestType {
     Get = 1,
     Post = 2,
+}
+#[derive(Clone, PartialEq)]
+pub enum EncodingType {
+    Unknown = 1,
+    Any = 2,
+    Gzip = 3,
+}
+impl EncodingType {
+    pub fn from_string(input: &str) -> EncodingType {
+        match input.to_lowercase().as_str() {
+            "gzip" => EncodingType::Gzip,
+            "*" => EncodingType::Any,
+            _ => EncodingType::Unknown,
+        }
+    }
+    pub fn to_string(&self) -> String {
+        match self {
+            EncodingType::Gzip => "gzip".to_owned(),
+            EncodingType::Any => "*".to_owned(),
+            EncodingType::Unknown => "".to_owned(),
+        }
+    }
+}
+#[derive(Clone, PartialEq)]
+pub struct Encoding {
+    pub encoding_type: EncodingType,
+    pub quality: f32,
+}
+impl Encoding {
+    pub fn new(encoding_type: EncodingType, quality: f32) -> Encoding {
+        return Encoding {
+            encoding_type: encoding_type,
+            quality: quality,
+        };
+    }
 }
 #[derive(Clone, PartialEq, Debug)]
 pub enum ContentType {
@@ -249,13 +286,17 @@ pub struct Response {
     stream: TcpStream,
     cookies: Vec<Cookie>,
     headers: Vec<Header>,
+    content_encoding: Vec<Encoding>,
+    pub use_encoding: bool,
 }
 impl Response {
-    pub fn new(stream: TcpStream) -> Response {
+    pub fn new(stream: TcpStream, content_encoding: Option<Vec<Encoding>>) -> Response {
         return Response {
             stream: stream,
             cookies: Vec::new(),
             headers: Vec::new(),
+            content_encoding: content_encoding.unwrap_or_default(),
+            use_encoding: true,
         };
     }
     //Deletes a cookie
@@ -283,36 +324,90 @@ impl Response {
             }
         }
     }
+    // Encoding
+
+    fn gzip_compress_data(&self, data: &[u8], compression_level: f32) -> Vec<u8> {
+        let mut compression_level = compression_level;
+        if compression_level == -1.0 {
+            compression_level = 0.2;
+        }
+        let mut encoder = GzEncoder::new(
+            Vec::new(),
+            Compression::new(map_compression_level(compression_level)),
+        );
+        encoder.write_all(data).unwrap_or_default();
+        let compressed_data = encoder.finish().unwrap_or_default();
+        return compressed_data;
+    }
+    fn compress_data(&mut self, data: &[u8]) -> Vec<u8> {
+        if self.content_encoding.len() == 0 {
+            return data.to_vec();
+        }
+        let encoding = self.content_encoding[0].clone();
+        if encoding.encoding_type == EncodingType::Any
+            || encoding.encoding_type == EncodingType::Gzip
+        {
+            self.set_header(&Header::new(
+                "Content-Encoding".to_owned(),
+                EncodingType::Gzip.to_string(),
+            ));
+            return self.gzip_compress_data(data, encoding.quality);
+        }
+
+        return data.to_vec();
+    }
+    fn prepare_data(&mut self, data: &[u8]) -> Vec<u8> {
+        if self.use_encoding == true {
+            return self.compress_data(data);
+        } else {
+            return data.to_vec();
+        }
+    }
     ///Sends string as output.
     pub fn send_string(&mut self, data: &str) {
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+
+        let compressed_data = self.prepare_data(data.as_bytes());
+
         let headers_set_headers = Header::generate_headers(&self.headers);
+
+        let content_length_string = format!("\nContent-length: {}\r\n\r\n", compressed_data.len());
+
         let response = "HTTP/1.1 200 OK".to_string()
             + &headers_set_headers
-            + &cookies_set_headers
-            + "Content-type: "
+            + "\nContent-type: "
             + ContentType::PlainText.as_str()
-            + "\r\n\r\n"
-            + data;
+            + &content_length_string
+            + &cookies_set_headers;
 
-        match self.stream.write_all(response.as_bytes()) {
+        let result = [response.as_bytes(), &compressed_data].concat();
+
+        match self.stream.write_all(&result) {
             Ok(_res) => {}
             Err(_e) => {}
         }
+
+        self.stream.flush().unwrap();
     }
     ///Sends json as output.
     pub fn send_json(&mut self, data: &str) {
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+
+        let compressed_data = self.prepare_data(data.as_bytes());
         let headers_set_headers = Header::generate_headers(&self.headers);
+
+        let content_length_string = format!("\nContent-length: {}\r\n\r\n", compressed_data.len());
+
         let response = "HTTP/1.1 200 OK".to_string()
             + &headers_set_headers
-            + &cookies_set_headers
-            + "Content-type: "
+            + "\nContent-type: "
             + ContentType::Json.as_str()
-            + "\r\n\r\n"
-            + data;
+            + &content_length_string
+            + &cookies_set_headers;
 
-        match self.stream.write_all(response.as_bytes()) {
+        let result = [response.as_bytes(), &compressed_data].concat();
+
+        match self.stream.write_all(&result) {
             Ok(_res) => {}
             Err(_e) => {}
         }
@@ -325,7 +420,9 @@ impl Response {
             ContentType::None
         };
         let content_type_string = format!("\nContent-type: {}", content_type.as_str());
-        let content_length_string = format!("\nContent-length: {}\r\n\r\n", data.len());
+
+        let compressed_data = self.prepare_data(data);
+        let content_length_string = format!("\nContent-length: {}\r\n\r\n", compressed_data.len());
 
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
         let headers_set_headers = Header::generate_headers(&self.headers);
@@ -340,12 +437,9 @@ impl Response {
             + &content_length_string
             + &cookies_set_headers;
 
-        match self.stream.write_all(response.as_bytes()) {
-            Ok(_res) => {}
-            Err(_e) => {}
-        }
+        let result = [response.as_bytes(), &compressed_data].concat();
 
-        match self.stream.write_all(data) {
+        match self.stream.write_all(&result) {
             Ok(_res) => {}
             Err(_e) => {}
         }
@@ -369,6 +463,10 @@ impl Response {
             Err(_e) => {}
         }
     }
+    // Get raw stream
+    pub fn get_stream(&mut self) -> &TcpStream {
+        return &self.stream;
+    }
 }
 
 pub struct Request {
@@ -376,21 +474,24 @@ pub struct Request {
     pub params: HashMap<String, String>,
     pub cookies: Vec<Cookie>,
     pub user_agent: Option<String>,
+    pub content_encoding: Option<Vec<Encoding>>,
     pub content_length: usize,
 }
 impl Request {
     pub fn new(
         query: HashMap<String, String>,
         params: HashMap<String, String>,
-        user_agent: Option<String>,
         cookies: Vec<Cookie>,
+        user_agent: Option<String>,
+        content_encoding: Option<Vec<Encoding>>,
         content_length: usize,
     ) -> Request {
         return Request {
             query: query,
             params: params,
-            user_agent: user_agent,
             cookies: cookies,
+            user_agent: user_agent,
+            content_encoding: content_encoding,
             content_length: content_length,
         };
     }
@@ -402,35 +503,68 @@ impl Request {
         let mut req = Request::new(
             query.unwrap_or_default(),
             params.unwrap_or_default(),
-            None,
             Vec::new(),
+            None,
+            None,
             0,
         );
+        fn extract_data(input: &str, skip_text: &str) -> String {
+            return input[skip_text.len()..].to_string();
+        }
         for line in lines {
-            if line.starts_with("User-Agent:") {
-                let parts: Vec<&str> = line.split("Agent: ").collect();
+            let lower_line = line.to_lowercase();
+            if lower_line.starts_with("user-agent:") {
+                let user_agent = extract_data(line, "User-Agent: ");
 
-                req.user_agent = Some(parts[1].to_string());
-            } else if line.starts_with("Content-Length:") {
+                req.user_agent = Some(user_agent);
+            } else if lower_line.starts_with("content-length:") {
                 let parts: Vec<&str> = line.split(" ").collect();
+
                 if parts.len() > 0 {
                     req.content_length = match parts[1].parse::<usize>() {
                         Ok(res) => res,
                         Err(err) => 0,
                     };
                 }
-            } else if line.starts_with("Cookie:") {
-                let parts: Vec<&str> = line.split("Cookie: ").collect();
-                if parts.len() == 2 {
-                    let cookies: Vec<&str> = parts[1].split("; ").collect();
-                    for cookie in cookies {
-                        let cookie_parts: Vec<&str> = cookie.split("=").collect();
-                        if cookie_parts.len() == 2 {
-                            req.cookies.push(Cookie::new_simple(
-                                cookie_parts[0].to_string(),
-                                cookie_parts[1].to_string(),
-                            ));
+            } else if lower_line.starts_with("accept-encoding:") {
+                let content_encoding: String = extract_data(line, "Accept-Encoding: ");
+
+                let mut encodings: Vec<Encoding> = Vec::new();
+                let encodings_string: Vec<&str> = content_encoding.split(", ").collect();
+
+                let mut encoding: Encoding = Encoding::new(EncodingType::Unknown, -1.0);
+
+                for encoding_str in encodings_string {
+                    if encoding_str.contains(";") {
+                        let parts: Vec<&str> = encoding_str.split(";").collect();
+                        encoding.encoding_type = EncodingType::from_string(parts[0]);
+                        if parts.len() > 0 {
+                            encoding.encoding_type = EncodingType::from_string(parts[0]);
                         }
+                        if parts.len() > 1 {
+                            encoding.quality = match parts[1].parse::<f32>() {
+                                Ok(res) => res,
+                                Err(err) => -1.0,
+                            };
+                        }
+                        encodings.push(encoding.clone());
+                    } else {
+                        encodings
+                            .push(Encoding::new(EncodingType::from_string(encoding_str), -1.0));
+                    }
+                }
+                req.content_encoding = Some(encodings);
+            } else if lower_line.starts_with("cookie:") {
+                let cookies_string = extract_data(line, "Cookie: ");
+                let cookies: Vec<&str> = cookies_string.split("; ").collect(); // not cookie cuz small chars
+
+                for cookie in cookies {
+                    let cookie_parts: Vec<&str> = cookie.split("=").collect();
+                    if cookie_parts.len() == 2 {
+                        req.cookies.push(Cookie::new_simple(
+                            cookie_parts[0].to_string(),
+                            cookie_parts[1].to_string(),
+                        ));
                     }
                 }
             }
@@ -464,4 +598,13 @@ impl<T: Clone + std::marker::Send + 'static> EndPoint<T> {
 
 fn count_char_occurrences(s: &str, target: char) -> usize {
     s.chars().filter(|&c| c == target).count()
+}
+fn map_compression_level(compression_float: f32) -> u32 {
+    if compression_float <= 0.0 {
+        0
+    } else if compression_float >= 1.0 {
+        10
+    } else {
+        (compression_float * 10.0).round() as u32
+    }
 }
