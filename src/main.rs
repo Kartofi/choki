@@ -1,7 +1,7 @@
-use std::fs;
-use std::io::Write;
+use std::fs::{self, File};
+use std::io::{BufReader, Write};
 
-use choki::structs::{Cookie, Header, Request, Response};
+use choki::structs::{ContentType, Cookie, Header, Request, Response};
 use choki::Server;
 
 fn main() {
@@ -36,7 +36,9 @@ fn main() {
         .get(
             "/",
             |req: Request, mut res: Response, public_var: Option<u8>| {
-                res.send_string("111111111111111111112222222222222222222dddddddddddddddddddddddddddddddddddddddd");
+                let file = File::open("tests/static/test/image.gif").expect("Failed to open file");
+                let reader = BufReader::new(file);
+                res.pipe_stream(reader, Some(ContentType::Png));
             },
         )
         .unwrap();

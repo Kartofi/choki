@@ -1,4 +1,11 @@
-use std::{collections::HashMap, io::Write, net::TcpStream, string, time::Instant, vec};
+use std::{
+    collections::HashMap,
+    io::{BufReader, Read, Write},
+    net::TcpStream,
+    string,
+    time::Instant,
+    vec,
+};
 
 use flate2::{write::GzEncoder, Compression};
 
@@ -66,6 +73,8 @@ pub enum ContentType {
     Gif,
     Webp,
     SvgXml,
+
+    OctetStream,
 }
 
 impl ContentType {
@@ -85,7 +94,7 @@ impl ContentType {
             ContentType::Pdf => "application/pdf",
             ContentType::JavascriptApp => "application/javascript",
             ContentType::Zip => "application/zip",
-
+            ContentType::OctetStream => "application/octet-stream",
             // Image Types
             ContentType::Jpeg => "image/jpeg",
             ContentType::Png => "image/png",
@@ -110,7 +119,7 @@ impl ContentType {
             "application/pdf" => ContentType::Pdf,
             "application/javascript" => ContentType::JavascriptApp,
             "application/zip" => ContentType::Zip,
-
+            "application/octet-stream" => ContentType::OctetStream,
             // Image Types
             "image/jpeg" => ContentType::Jpeg,
             "image/png" => ContentType::Png,
@@ -365,52 +374,13 @@ impl Response {
     }
     ///Sends string as output.
     pub fn send_string(&mut self, data: &str) {
-        let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
-
-        let compressed_data = self.prepare_data(data.as_bytes());
-
-        let headers_set_headers = Header::generate_headers(&self.headers);
-
-        let content_length_string = format!("\nContent-length: {}\r\n\r\n", compressed_data.len());
-
-        let response = "HTTP/1.1 200 OK".to_string()
-            + &headers_set_headers
-            + "\nContent-type: "
-            + ContentType::PlainText.as_str()
-            + &content_length_string
-            + &cookies_set_headers;
-
-        let result = [response.as_bytes(), &compressed_data].concat();
-
-        match self.stream.write_all(&result) {
-            Ok(_res) => {}
-            Err(_e) => {}
-        }
-
-        self.stream.flush().unwrap();
+        self.use_encoding = true;
+        self.send_bytes(data.as_bytes(), Some(ContentType::PlainText));
     }
     ///Sends json as output.
     pub fn send_json(&mut self, data: &str) {
-        let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
-
-        let compressed_data = self.prepare_data(data.as_bytes());
-        let headers_set_headers = Header::generate_headers(&self.headers);
-
-        let content_length_string = format!("\nContent-length: {}\r\n\r\n", compressed_data.len());
-
-        let response = "HTTP/1.1 200 OK".to_string()
-            + &headers_set_headers
-            + "\nContent-type: "
-            + ContentType::Json.as_str()
-            + &content_length_string
-            + &cookies_set_headers;
-
-        let result = [response.as_bytes(), &compressed_data].concat();
-
-        match self.stream.write_all(&result) {
-            Ok(_res) => {}
-            Err(_e) => {}
-        }
+        self.use_encoding = true;
+        self.send_bytes(data.as_bytes(), Some(ContentType::Json));
     }
     //Sends raw bytes
     pub fn send_bytes(&mut self, data: &[u8], content_type: Option<ContentType>) {
@@ -419,37 +389,176 @@ impl Response {
         } else {
             ContentType::None
         };
-        let content_type_string = format!("\nContent-type: {}", content_type.as_str());
 
         let compressed_data = self.prepare_data(data);
-        let content_length_string = format!("\nContent-length: {}\r\n\r\n", compressed_data.len());
+
+        self.headers.push(Header::new(
+            "Content-type".to_string(),
+            content_type.as_str().to_string(),
+        ));
+        self.headers.push(Header::new(
+            "Content-length".to_string(),
+            compressed_data.len().to_string(),
+        ));
+        self.headers.push(Header::new(
+            "Transfer-Encoding".to_string(),
+            "chunked".to_string(),
+        ));
+        self.headers.push(Header::new(
+            "Connection".to_string(),
+            "keep-alive".to_string(),
+        ));
 
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+
         let headers_set_headers = Header::generate_headers(&self.headers);
 
-        let response = "HTTP/1.1 200 OK".to_owned()
-            + &headers_set_headers
-            + (if content_type == ContentType::None {
-                ""
-            } else {
-                &content_type_string
-            })
-            + &content_length_string
-            + &cookies_set_headers;
+        let mut response =
+            "HTTP/1.1 200 OK".to_owned() + &headers_set_headers + &cookies_set_headers;
+        response = response.trim().to_owned();
+        response += "\r\n\r\n";
 
-        let result = [response.as_bytes(), &compressed_data].concat();
-
-        match self.stream.write_all(&result) {
+        match self.stream.write_all(&response.as_bytes()) {
             Ok(_res) => {}
             Err(_e) => {}
         }
-    }
+        // Define the chunk size
+        const CHUNK_SIZE: usize = 1024;
 
+        // Write the data in chunks
+        let mut start = 0;
+
+        while start < compressed_data.len() {
+            let end = (start + CHUNK_SIZE).min(compressed_data.len());
+            let chunk = &compressed_data[start..end];
+
+            // Write the chunk size in hexadecimal, followed by CRLF
+            if let Err(e) = self
+                .stream
+                .write_all(format!("{:X}\r\n", chunk.len()).as_bytes())
+            {
+                eprintln!("Failed to write chunk size: {}", e);
+                return;
+            }
+
+            // Write the chunk data, followed by CRLF
+            if let Err(e) = self.stream.write_all(chunk) {
+                eprintln!("Failed to write chunk data: {}", e);
+                return;
+            }
+
+            if let Err(e) = self.stream.write_all(b"\r\n") {
+                eprintln!("Failed to write chunk terminator: {}", e);
+                return;
+            }
+
+            start = end;
+        }
+
+        if let Err(e) = self.stream.write_all(b"0\r\n\r\n") {
+            eprintln!("Failed to write final chunk: {}", e);
+            return;
+        }
+
+        if let Err(e) = self.stream.flush() {
+            eprintln!("Failed to flush stream: {}", e);
+        }
+    }
+    // Pipe a whole stream
+    pub fn pipe_stream(
+        &mut self,
+        mut stream: BufReader<impl Read>,
+        content_type: Option<ContentType>,
+    ) {
+        if let Some(ct) = content_type {
+            self.headers.push(Header::new(
+                "Content-Type".to_string(),
+                ct.as_str().to_owned(),
+            ));
+        }
+        self.headers.push(Header::new(
+            "Transfer-Encoding".to_string(),
+            "chunked".to_string(),
+        ));
+        self.headers.push(Header::new(
+            "Connection".to_string(),
+            "keep-alive".to_string(),
+        ));
+
+        let headers_set_headers = Header::generate_headers(&self.headers); // Assuming generate_headers exists
+        let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+
+        let mut response =
+            "HTTP/1.1 200 OK".to_owned() + &headers_set_headers + &cookies_set_headers;
+        response = response.trim().to_owned();
+        response += "\r\n\r\n";
+
+        if let Err(e) = self.stream.write_all(response.as_bytes()) {
+            eprintln!("Failed to write response headers: {}", e);
+            return;
+        }
+
+        const CHUNK_SIZE: usize = 8192; // 8 KB chunk size for efficient streaming
+        let mut buffer = [0; CHUNK_SIZE];
+
+        loop {
+            match stream.read(&mut buffer) {
+                Ok(0) => break, // EOF reached
+                Ok(n) => {
+                    if let Err(e) = self.stream.write_all(format!("{:X}\r\n", n).as_bytes()) {
+                        eprintln!("Failed to write chunk size: {}", e);
+                        return;
+                    }
+
+                    if let Err(e) = self.stream.write_all(&buffer[..n]) {
+                        eprintln!("Failed to write chunk data: {}", e);
+                        return;
+                    }
+
+                    if let Err(e) = self.stream.write_all(b"\r\n") {
+                        eprintln!("Failed to write chunk terminator: {}", e);
+                        return;
+                    }
+                }
+                Err(e) => {
+                    eprintln!("Failed to read from stream: {}", e);
+                    break;
+                }
+            }
+        }
+
+        if let Err(e) = self.stream.write_all(b"0\r\n\r\n") {
+            eprintln!("Failed to write final chunk: {}", e);
+            return;
+        }
+
+        if let Err(e) = self.stream.flush() {
+            eprintln!("Failed to flush stream: {}", e);
+        }
+    }
+    // Send Download
+    pub fn send_download_bytes(&mut self, data: &[u8], file_name: &str) {
+        self.use_encoding = false;
+        self.headers.push(Header::new(
+            "Content-Disposition".to_string(),
+            "attachment; filename=".to_string() + file_name,
+        ));
+        self.send_bytes(data, Some(ContentType::OctetStream));
+    }
+    pub fn send_download_stream(&mut self, mut stream: BufReader<impl Read>, file_name: &str) {
+        self.use_encoding = false;
+        self.headers.push(Header::new(
+            "Content-Disposition".to_string(),
+            "attachment; filename=".to_string() + file_name,
+        ));
+        self.pipe_stream(stream, Some(ContentType::OctetStream));
+    }
     //Sends a response code (404, 200...)
     pub fn send_code(&mut self, code: usize) {
         let mut response = "HTTP/1.1 ".to_owned()
             + &code.to_string()
             + (match code {
+                100 => "Continue",
                 404 => " NOT FOUND\r\n\r\nPAGE NOT FOUND",
                 413 => " PAYLOAD TOO LARGE\r\n\r\nPAYLOAD TOO LARGE",
                 _ => " OK\r\n\r\n",
@@ -476,6 +585,9 @@ pub struct Request {
     pub user_agent: Option<String>,
     pub content_encoding: Option<Vec<Encoding>>,
     pub content_length: usize,
+    // BODY
+    pub content_type: Option<ContentType>,
+    pub boudary: Option<String>,
 }
 impl Request {
     pub fn new(
@@ -485,6 +597,9 @@ impl Request {
         user_agent: Option<String>,
         content_encoding: Option<Vec<Encoding>>,
         content_length: usize,
+
+        content_type: Option<ContentType>,
+        boudary: Option<String>,
     ) -> Request {
         return Request {
             query: query,
@@ -493,6 +608,9 @@ impl Request {
             user_agent: user_agent,
             content_encoding: content_encoding,
             content_length: content_length,
+
+            content_type: content_type,
+            boudary: boudary,
         };
     }
     pub fn parse(
@@ -507,6 +625,8 @@ impl Request {
             None,
             None,
             0,
+            None,
+            None,
         );
         fn extract_data(input: &str, skip_text: &str) -> String {
             return input[skip_text.len()..].to_string();
@@ -554,6 +674,16 @@ impl Request {
                     }
                 }
                 req.content_encoding = Some(encodings);
+            } else if lower_line.starts_with("content-type:") {
+                let content_type: String = extract_data(line, "Content-Type: ");
+                let parts: Vec<&str> = content_type.split("; ").collect();
+                if parts.len() > 0 {
+                    req.content_type = Some(ContentType::from_string(parts[0]));
+                }
+                if parts.len() > 1 {
+                    let boudary = parts[1].replace("boundary=", "");
+                    req.boudary = Some(boudary);
+                }
             } else if lower_line.starts_with("cookie:") {
                 let cookies_string = extract_data(line, "Cookie: ");
                 let cookies: Vec<&str> = cookies_string.split("; ").collect(); // not cookie cuz small chars

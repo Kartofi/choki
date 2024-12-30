@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::fmt::write;
+use std::fs::File;
 use std::path::Path;
 use std::time::{Duration, Instant};
 use std::{fs, thread};
 use std::{io::Write, net::*};
 
-use std::io::{Error, Read};
+use std::io::{BufRead, BufReader, Error, Read};
 use structs::*;
 use threadpool::ThreadPool;
 extern crate num_cpus;
@@ -143,15 +144,25 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 pool.execute(move || {
                     let mut stream: TcpStream = stream.unwrap();
 
-                    let mut buffer: [u8; 1024] = [0; 1024];
+                    let mut buffer: Vec<u8> = Vec::new();
+                    let mut buffer2: [u8; 1024] = [0; 1024];
 
-                    stream
-                        .read(&mut buffer)
-                        .expect("Failed to read from stream");
+                    let mut bfreader: BufReader<TcpStream> =
+                        BufReader::new(stream.try_clone().expect("Failed to create Buffer Reader"));
 
-                    let string_req = String::from_utf8_lossy(&buffer);
+                    let mut headers_string: String = "".to_string();
+                    let mut line = "".to_owned();
+                    loop {
+                        bfreader.read_line(&mut line).unwrap();
+                        if &line == "\r\n" {
+                            break;
+                        }
+                        headers_string.push_str(&line);
 
-                    let lines: Vec<&str> = string_req.lines().collect();
+                        line = "".to_string();
+                    }
+
+                    let lines: Vec<&str> = headers_string.lines().collect();
                     if lines.len() == 1 {
                         return;
                     }
@@ -173,6 +184,43 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                             if match_pattern.0 == true && req_url.req_type == route.req_type {
                                 req.params = match_pattern.1;
 
+                                let mut ll_data: String = "".to_string();
+                                let mut count = 0;
+                                loop {
+                                    if count < 3 {
+                                        match bfreader.read_line(&mut ll_data) {
+                                            Ok(size) => {
+                                                count += 1;
+                                            }
+                                            Err(err) => {
+                                                break;
+                                            }
+                                        }
+                                        continue;
+                                    }
+                                    match bfreader.read(&mut buffer2) {
+                                        Ok(size) => {
+                                            buffer.extend(buffer2);
+                                            buffer2 = [0; 1024];
+                                            println!(
+                                                "{:?}",
+                                                String::from_utf8_lossy(&buffer[..100])
+                                            );
+                                            if buffer.len() >= req.content_length {
+                                                break;
+                                            }
+                                            stream.write_all(b"HTTP/1.1 100 Continue").unwrap();
+                                        }
+                                        Err(err) => {}
+                                    }
+                                }
+                                let mut cleaned =
+                                    remove_repeating_pattern(&buffer, b"--X-INSOMNIA-BOUNDARY");
+                                let cleaned = &cleaned[2..];
+
+                                fs::write("./image.png", cleaned).unwrap();
+
+                                println!("{:?}", buffer.len());
                                 (route.handle)(req, res, public_var_clone);
                                 sent = true;
                                 break;
@@ -188,15 +236,22 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                                     if parts.len() == 0 {
                                         continue;
                                     }
-                                    match fs::read(route.1 + parts[1]) {
-                                        Ok(data) => {
-                                            res2.send_bytes(&data, None);
+                                    let path_str = route.1 + parts[1];
+                                    let path = Path::new(&path_str);
+                                    if path.exists() {
+                                        match File::open(path) {
+                                            Ok(file) => {
+                                                let bfreader = BufReader::new(file);
+                                                res2.pipe_stream(bfreader, None);
+                                            }
+                                            Err(err) => {
+                                                res2.send_code(404);
+                                            }
                                         }
-                                        Err(err) => {
-                                            //println!("There was error serving this file!");
-                                            res2.send_code(404);
-                                        }
+                                    } else {
+                                        res2.send_code(404);
                                     }
+
                                     sent = true;
                                     break;
                                 }
@@ -221,4 +276,21 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             std::thread::sleep(dur);
         }
     }
+}
+fn remove_repeating_pattern(input: &[u8], pattern: &[u8]) -> Vec<u8> {
+    let mut result = Vec::new();
+    let pattern_len = pattern.len();
+    let mut i = 0;
+
+    while i < input.len() {
+        // Check if the current slice matches the pattern
+        if i + pattern_len <= input.len() && &input[i..i + pattern_len] == pattern {
+            i += pattern_len; // Skip the pattern
+        } else {
+            result.push(input[i]); // Add the current byte to the result
+            i += 1; // Move to the next byte
+        }
+    }
+
+    result
 }
