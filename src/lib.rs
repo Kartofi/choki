@@ -3,7 +3,7 @@ use std::fmt::write;
 use std::fs::File;
 use std::path::Path;
 use std::time::{Duration, Instant};
-use std::{fs, thread};
+use std::{fs, io, thread};
 use std::{io::Write, net::*};
 
 use std::io::{BufRead, BufReader, Error, Read};
@@ -144,6 +144,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 pool.execute(move || {
                     let mut stream: TcpStream = stream.unwrap();
 
+                    let mut total_read = 0;
                     let mut buffer: Vec<u8> = Vec::new();
                     let mut buffer2: [u8; 1024] = [0; 1024];
 
@@ -154,9 +155,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                     let mut line = "".to_owned();
                     loop {
                         bfreader.read_line(&mut line).unwrap();
+
                         if &line == "\r\n" {
                             break;
                         }
+
                         headers_string.push_str(&line);
 
                         line = "".to_string();
@@ -186,41 +189,54 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
 
                                 let mut ll_data: String = "".to_string();
                                 let mut count = 0;
+                                let mut total_size = 0;
+                                let mut body_length_to_read = 0;
+
                                 loop {
                                     if count < 3 {
                                         match bfreader.read_line(&mut ll_data) {
                                             Ok(size) => {
                                                 count += 1;
+                                                total_read += size;
                                             }
-                                            Err(err) => {
+                                            Err(_) => {
                                                 break;
                                             }
+                                        }
+                                        if count >= 3 {
+                                            body_length_to_read = req.content_length - total_read;
+                                            println!("{}", body_length_to_read);
                                         }
                                         continue;
                                     }
+
                                     match bfreader.read(&mut buffer2) {
                                         Ok(size) => {
-                                            buffer.extend(buffer2);
-                                            buffer2 = [0; 1024];
+                                            total_size += size;
+
                                             println!(
-                                                "{:?}",
-                                                String::from_utf8_lossy(&buffer[..100])
+                                                "Read {} bytes, total: {} / expected: {}",
+                                                size,
+                                                total_size,
+                                                req.content_length - total_read
                                             );
-                                            if buffer.len() >= req.content_length {
-                                                break;
+
+                                            buffer.extend_from_slice(&buffer2[..size]);
+                                            if size == 0 || total_size >= body_length_to_read {
+                                                break; // End of file
                                             }
-                                            stream.write_all(b"HTTP/1.1 100 Continue").unwrap();
                                         }
-                                        Err(err) => {}
+                                        Err(_) => break,
                                     }
                                 }
-                                let mut cleaned =
-                                    remove_repeating_pattern(&buffer, b"--X-INSOMNIA-BOUNDARY");
-                                let cleaned = &cleaned[2..];
-
+                                let mut cleaned = buffer.to_vec();
+                                println!("{}", cleaned.len());
+                                cleaned = cleaned[2..cleaned.len()
+                                    - (req.boudary.clone().unwrap_or_default().len() + 2)]
+                                    .to_vec();
+                                println!("{}", cleaned.len());
                                 fs::write("./image.png", cleaned).unwrap();
 
-                                println!("{:?}", buffer.len());
                                 (route.handle)(req, res, public_var_clone);
                                 sent = true;
                                 break;
