@@ -1,7 +1,9 @@
 use std::fs::{self, File};
 use std::io::{BufReader, Write};
 
-use choki::structs::{ContentType, Cookie, Header, Request, Response};
+use choki::utils::request::Request;
+use choki::utils::response::Response;
+use choki::utils::structs::ContentType;
 use choki::Server;
 
 fn main() {
@@ -29,6 +31,8 @@ fn main() {
             "/filetest",
             |req: Request, mut res: Response, public_var: Option<u8>| {
                 let str = req.user_agent.unwrap();
+                println!("{}", req.body.unwrap().len());
+                res.send_code(200);
             },
         )
         .unwrap();
