@@ -91,14 +91,58 @@ impl Response {
         }
     }
     ///Sends string as output.
-    pub fn send_string(&mut self, data: &str) {
-        self.use_encoding = true;
+    pub fn send_string_chunked(&mut self, data: &str) {
         self.send_bytes(data.as_bytes(), Some(ContentType::PlainText));
     }
+    pub fn send_string(&mut self, data: &str) {
+        let compressed_data = self.prepare_data(data.as_bytes());
+
+        self.set_header(&Header::new(
+            "Content-type".to_string(),
+            ContentType::PlainText.as_str().to_string(),
+        ));
+        let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+        let headers_set_headers = Header::generate_headers(&self.headers);
+
+        let response = "HTTP/1.1 200 OK".to_string()
+            + &headers_set_headers
+            + &cookies_set_headers
+            + "\r\n\r\n";
+
+        match self
+            .stream
+            .write_all(&[response.as_bytes(), &compressed_data].concat())
+        {
+            Ok(_res) => {}
+            Err(_e) => {}
+        }
+    }
     ///Sends json as output.
-    pub fn send_json(&mut self, data: &str) {
-        self.use_encoding = true;
+    pub fn send_json_chunked(&mut self, data: &str) {
         self.send_bytes(data.as_bytes(), Some(ContentType::Json));
+    }
+    pub fn send_json(&mut self, data: &str) {
+        let compressed_data = self.prepare_data(data.as_bytes());
+
+        self.set_header(&Header::new(
+            "Content-type".to_string(),
+            ContentType::Json.as_str().to_string(),
+        ));
+        let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
+        let headers_set_headers = Header::generate_headers(&self.headers);
+
+        let response = "HTTP/1.1 200 OK".to_string()
+            + &headers_set_headers
+            + &cookies_set_headers
+            + "\r\n\r\n";
+
+        match self
+            .stream
+            .write_all(&[response.as_bytes(), &compressed_data].concat())
+        {
+            Ok(_res) => {}
+            Err(_e) => {}
+        }
     }
     //Sends raw bytes
     pub fn send_bytes(&mut self, data: &[u8], content_type: Option<ContentType>) {

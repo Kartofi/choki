@@ -117,7 +117,13 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         self.new_endpoint(path, RequestType::Post, handle)
     }
     ///Starts listening on the given port.
-    pub fn listen(&mut self, port: u32, address: Option<&str>) -> Result<(), HttpServerError> {
+    /// If no provided threads will use cpu threads as value. The higher the value the higher the cpu usage.
+    pub fn listen(
+        &mut self,
+        port: u32,
+        address: Option<&str>,
+        threads: Option<usize>,
+    ) -> Result<(), HttpServerError> {
         if port > 65_535 {
             return Err(HttpServerError::new(
                 "Invalid port: port must be 0-65,535".to_string(),
@@ -129,7 +135,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             ));
         }
         self.active = true;
-        let pool: ThreadPool = ThreadPool::new(num_cpus::get());
+        let pool: ThreadPool = ThreadPool::new(threads.unwrap_or(num_cpus::get()));
         let routes = self.endpoints.clone();
         let static_routes = self.static_endpoints.clone();
 
@@ -156,10 +162,15 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                     let mut headers_string: String = "".to_string();
                     let mut line = "".to_owned();
                     loop {
-                        bfreader.read_line(&mut line).unwrap();
-
-                        if &line == "\r\n" {
-                            break;
+                        match bfreader.read_line(&mut line) {
+                            Ok(size) => {
+                                if size <= 2 {
+                                    break;
+                                }
+                            }
+                            Err(e) => {
+                                return;
+                            }
                         }
 
                         headers_string.push_str(&line);
@@ -168,7 +179,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                     }
 
                     let lines: Vec<&str> = headers_string.lines().collect();
-                    if lines.len() == 1 {
+                    if lines.len() <= 1 {
                         return;
                     }
                     let req_url = Url::parse(lines[0]).unwrap();
@@ -236,6 +247,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 });
             }
         });
+
         Ok(())
     }
 

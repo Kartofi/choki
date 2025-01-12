@@ -40,13 +40,11 @@ fn main() {
         .get(
             "/",
             |req: Request, mut res: Response, public_var: Option<u8>| {
-                let file = File::open("tests/static/test/image.gif").expect("Failed to open file");
-                let reader = BufReader::new(file);
-                res.pipe_stream(reader, Some(ContentType::Png));
+                res.send_code(200);
             },
         )
         .unwrap();
     server.new_static("/images", "./tests/static").unwrap();
-    server.listen(3000, None).unwrap();
+    server.listen(3000, None, Some(100)).unwrap();
     Server::<i32>::lock();
 }
