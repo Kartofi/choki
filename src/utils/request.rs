@@ -140,22 +140,18 @@ impl Request {
 
     pub fn extract_body(&mut self, bfreader: &mut BufReader<TcpStream>) {
         let mut total_size = 0;
-        let mut total_read = 0;
+
         let mut buffer: Vec<u8> = Vec::new();
-        let mut buffer2: [u8; 2048] = [0; 2048];
+        let mut buffer2: [u8; 4096] = [0; 4096];
 
         loop {
             match bfreader.read(&mut buffer2) {
                 Ok(size) => {
                     total_size += size;
-
                     println!(
                         "Read {} bytes, total: {} / expected: {}",
-                        size,
-                        total_size,
-                        self.content_length - total_read
+                        size, total_size, self.content_length
                     );
-
                     buffer.extend_from_slice(&buffer2[..size]);
                     if size == 0 || total_size >= self.content_length {
                         break; // End of file
@@ -164,7 +160,96 @@ impl Request {
                 Err(_) => break,
             }
         }
-        let mut cleaned = buffer.to_vec();
-        self.body = Some(cleaned);
+        if *self.content_type.as_ref().unwrap() != ContentType::MultipartForm {
+            self.body = Some(buffer);
+            return;
+        }
+        let boundary = (&self.boudary.clone().unwrap()).as_bytes().to_owned();
+
+        let mut index = 0;
+
+        let mut segments: Vec<(usize, usize)> = Vec::new();
+
+        replace_bytes(&mut buffer, "\r\n--".as_bytes(), "".as_bytes());
+        replace_bytes(
+            &mut buffer,
+            "\r\nContent-Di".as_bytes(),
+            "Content-Di".as_bytes(),
+        );
+
+        for i in buffer.clone() {
+            let mut matches: Vec<usize> = Vec::new();
+            let mut ii = 0;
+
+            if index + boundary.len() - 1 == buffer.len() {
+                break;
+            }
+
+            for index2 in index..index + boundary.len() {
+                if boundary[ii] == buffer[index2] {
+                    matches.push(index2);
+                    if matches.len() == boundary.len() {
+                        if !segments.is_empty() {
+                            segments.last_mut().unwrap().1 = matches[0];
+                        }
+
+                        segments.push((matches[0] + boundary.len(), 0));
+                        break;
+                    }
+                    ii += 1;
+                } else {
+                    break;
+                }
+            }
+
+            index += 1;
+        }
+
+        // Clean up the buffer by removing boundary sections and preserving the segments
+        let mut cleaned2: Vec<Vec<Vec<u8>>> = Vec::new();
+
+        // Extract segments between the boundaries into `cleaned2`
+        for (start, end) in segments {
+            if start < end {
+                cleaned2.push(split_buffer(&buffer[start..end], "\r\n\r\n".as_bytes()).to_vec());
+            }
+        }
+
+        // Debug outputs
+        for cl in &cleaned2 {
+            println!("{:?}", String::from_utf8_lossy(&cl[1]));
+        }
+
+        println!("--{}--", self.boudary.clone().unwrap());
+        self.body = Some(buffer);
     }
+}
+fn replace_bytes(buffer: &mut Vec<u8>, target: &[u8], replacement: &[u8]) {
+    let mut i = 0;
+    while i <= buffer.len() - target.len() {
+        if &buffer[i..i + target.len()] == target {
+            buffer.splice(i..i + target.len(), replacement.iter().cloned());
+            i += replacement.len();
+        } else {
+            i += 1; // Move to the next byte
+        }
+    }
+}
+fn split_buffer(buffer: &[u8], delimiter: &[u8]) -> Vec<Vec<u8>> {
+    let mut segments = Vec::new();
+    let mut start = 0;
+
+    let mut i = 0;
+    while i <= buffer.len() - delimiter.len() {
+        if &buffer[i..i + delimiter.len()] == delimiter {
+            segments.push(buffer[start..i].to_vec());
+            start = i + delimiter.len();
+            i += delimiter.len();
+        } else {
+            i += 1;
+        }
+    }
+    segments.push(buffer[start..].to_vec());
+
+    segments
 }

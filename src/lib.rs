@@ -160,6 +160,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                         BufReader::new(stream.try_clone().expect("Failed to create Buffer Reader"));
 
                     let mut headers_string: String = "".to_string();
+
                     let mut line = "".to_owned();
                     loop {
                         match bfreader.read_line(&mut line) {
@@ -220,7 +221,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                                     }
                                     let path_str = route.1 + parts[1];
                                     let path = Path::new(&path_str);
-                                    if path.exists() {
+                                    if path.exists() && path_str.contains(".") {
                                         match File::open(path) {
                                             Ok(file) => {
                                                 let bfreader = BufReader::new(file);
@@ -259,21 +260,4 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             std::thread::sleep(dur);
         }
     }
-}
-fn remove_repeating_pattern(input: &[u8], pattern: &[u8]) -> Vec<u8> {
-    let mut result = Vec::new();
-    let pattern_len = pattern.len();
-    let mut i = 0;
-
-    while i < input.len() {
-        // Check if the current slice matches the pattern
-        if i + pattern_len <= input.len() && &input[i..i + pattern_len] == pattern {
-            i += pattern_len; // Skip the pattern
-        } else {
-            result.push(input[i]); // Add the current byte to the result
-            i += 1; // Move to the next byte
-        }
-    }
-
-    result
 }

@@ -31,8 +31,8 @@ fn main() {
             "/filetest",
             |req: Request, mut res: Response, public_var: Option<u8>| {
                 let str = req.user_agent.unwrap();
-                println!("{}", req.body.unwrap().len());
                 res.send_code(200);
+                //println!("{}", String::from_utf8_lossy(&req.body.unwrap()));
             },
         )
         .unwrap();
@@ -40,7 +40,9 @@ fn main() {
         .get(
             "/",
             |req: Request, mut res: Response, public_var: Option<u8>| {
-                res.send_code(200);
+                let stream = File::open("./image.png").unwrap();
+                let reader = BufReader::new(stream);
+                res.pipe_stream(reader, Some(ContentType::Png));
             },
         )
         .unwrap();
