@@ -160,15 +160,12 @@ impl Request {
                 Err(_) => break,
             }
         }
+
         if *self.content_type.as_ref().unwrap() != ContentType::MultipartForm {
             self.body = Some(buffer);
             return;
         }
         let boundary = (&self.boudary.clone().unwrap()).as_bytes().to_owned();
-
-        let mut index = 0;
-
-        let mut segments: Vec<(usize, usize)> = Vec::new();
 
         replace_bytes(&mut buffer, "\r\n--".as_bytes(), "".as_bytes());
         replace_bytes(
@@ -177,38 +174,41 @@ impl Request {
             "Content-Di".as_bytes(),
         );
 
-        for i in buffer.clone() {
-            let mut matches: Vec<usize> = Vec::new();
-            let mut ii = 0;
+        let mut segments: Vec<(usize, usize)> = Vec::new();
 
-            if index + boundary.len() - 1 == buffer.len() {
+        for index in 0..buffer.len() {
+            let mut first_match: usize = usize::MAX;
+
+            let mut matches = 0;
+
+            if index + boundary.len() > buffer.len() {
                 break;
             }
 
             for index2 in index..index + boundary.len() {
-                if boundary[ii] == buffer[index2] {
-                    matches.push(index2);
-                    if matches.len() == boundary.len() {
+                if boundary[matches] == buffer[index2] {
+                    matches += 1;
+
+                    if first_match == usize::MAX {
+                        first_match = index2;
+                    }
+
+                    if matches == boundary.len() {
                         if !segments.is_empty() {
-                            segments.last_mut().unwrap().1 = matches[0];
+                            segments.last_mut().unwrap().1 = first_match;
                         }
 
-                        segments.push((matches[0] + boundary.len(), 0));
+                        segments.push((first_match + boundary.len(), 0));
                         break;
                     }
-                    ii += 1;
                 } else {
                     break;
                 }
             }
-
-            index += 1;
         }
 
-        // Clean up the buffer by removing boundary sections and preserving the segments
         let mut cleaned2: Vec<Vec<Vec<u8>>> = Vec::new();
 
-        // Extract segments between the boundaries into `cleaned2`
         for (start, end) in segments {
             if start < end {
                 cleaned2.push(split_buffer(&buffer[start..end], "\r\n\r\n".as_bytes()).to_vec());
@@ -220,7 +220,6 @@ impl Request {
             println!("{:?}", String::from_utf8_lossy(&cl[1]));
         }
 
-        println!("--{}--", self.boudary.clone().unwrap());
         self.body = Some(buffer);
     }
 }

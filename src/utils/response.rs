@@ -187,7 +187,6 @@ impl Response {
         // Define the chunk size
         const CHUNK_SIZE: usize = 1024;
 
-        // Write the data in chunks
         let mut start = 0;
 
         while start < compressed_data.len() {
@@ -247,7 +246,7 @@ impl Response {
             "keep-alive".to_string(),
         ));
 
-        let headers_set_headers = Header::generate_headers(&self.headers); // Assuming generate_headers exists
+        let headers_set_headers = Header::generate_headers(&self.headers);
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
 
         let mut response =
@@ -260,7 +259,7 @@ impl Response {
             return;
         }
 
-        const CHUNK_SIZE: usize = 8192; // 8 KB chunk size for efficient streaming
+        const CHUNK_SIZE: usize = 8192 * 2; // 16 KB chunk size
         let mut buffer = [0; CHUNK_SIZE];
 
         loop {

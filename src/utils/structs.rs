@@ -190,8 +190,8 @@ impl Url {
         Ok(Url::new(path.to_string(), req_type, query))
     }
     pub fn match_patern(input: &str, pattern: &str) -> (bool, HashMap<String, String>) {
-        let mut parts_input: Vec<&str> = input.split('/').filter(|a| a.len() > 0).collect();
-        let mut parts_pattern: Vec<&str> = pattern.split('/').filter(|a| a.len() > 0).collect();
+        let parts_input: Vec<&str> = input.split('/').filter(|a| a.len() > 0).collect();
+        let parts_pattern: Vec<&str> = pattern.split('/').filter(|a| a.len() > 0).collect();
 
         if parts_input.len() != parts_pattern.len() {
             return (false, HashMap::new());

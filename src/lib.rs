@@ -201,7 +201,9 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                                 Url::match_patern(&req_url.path.clone(), &route.path.clone());
                             if match_pattern.0 == true && req_url.req_type == route.req_type {
                                 req.params = match_pattern.1;
-                                if req.content_type.is_some() {
+                                if req.content_type.is_some()
+                                    && req_url.req_type != RequestType::Get
+                                {
                                     req.extract_body(&mut bfreader);
                                 }
                                 (route.handle)(req, res, public_var_clone);
@@ -221,13 +223,14 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                                     }
                                     let path_str = route.1 + parts[1];
                                     let path = Path::new(&path_str);
-                                    if path.exists() && path_str.contains(".") {
+
+                                    if path.exists() && path.is_file() {
                                         match File::open(path) {
                                             Ok(file) => {
                                                 let bfreader = BufReader::new(file);
                                                 res2.pipe_stream(bfreader, None);
                                             }
-                                            Err(err) => {
+                                            Err(_err) => {
                                                 res2.send_code(404);
                                             }
                                         }
