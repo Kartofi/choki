@@ -4,11 +4,7 @@ use std::{
     net::TcpStream,
 };
 
-use flate2::{write::GzEncoder, Compression};
-
 use crate::{utils::structs::*, Encoding};
-
-use super::utils::map_compression_level;
 
 pub struct Request {
     pub query: HashMap<String, String>,
@@ -20,7 +16,7 @@ pub struct Request {
     // BODY
     pub content_type: Option<ContentType>,
     pub boudary: Option<String>,
-    pub body: Option<Vec<u8>>,
+    pub body: Option<Vec<BodyItem>>,
 }
 impl Request {
     pub fn new(
@@ -33,7 +29,7 @@ impl Request {
 
         content_type: Option<ContentType>,
         boudary: Option<String>,
-        body: Option<Vec<u8>>,
+        body: Option<Vec<BodyItem>>,
     ) -> Request {
         return Request {
             query: query,
@@ -143,6 +139,7 @@ impl Request {
 
         let mut buffer: Vec<u8> = Vec::new();
         let mut buffer2: [u8; 4096] = [0; 4096];
+        let mut body: Vec<BodyItem> = Vec::new();
 
         loop {
             match bfreader.read(&mut buffer2) {
@@ -160,9 +157,11 @@ impl Request {
                 Err(_) => break,
             }
         }
+        let content_type = self.content_type.as_ref().unwrap().clone();
+        if content_type != ContentType::MultipartForm {
+            body.push(BodyItem::new_simple(content_type, buffer));
 
-        if *self.content_type.as_ref().unwrap() != ContentType::MultipartForm {
-            self.body = Some(buffer);
+            self.body = Some(body);
             return;
         }
         let boundary = (&self.boudary.clone().unwrap()).as_bytes().to_owned();
@@ -207,20 +206,26 @@ impl Request {
             }
         }
 
-        let mut cleaned2: Vec<Vec<Vec<u8>>> = Vec::new();
+        let mut buff: Vec<Vec<u8>> = Vec::new();
 
         for (start, end) in segments {
             if start < end {
-                cleaned2.push(split_buffer(&buffer[start..end], "\r\n\r\n".as_bytes()).to_vec());
+                buff = split_buffer(&buffer[start..end], "\r\n\r\n".as_bytes()).to_vec();
+                println!("123{}", String::from_utf8_lossy(&buff[0]));
+                BodyItem::from_str(&String::from_utf8_lossy(&buff[0]));
+                /*  body.push(BodyItem::new_simple(
+                    &String::from_utf8_lossy(&buff[0]),
+                    buff[1].clone(),
+                ));*/
             }
         }
-
-        // Debug outputs
-        for cl in &cleaned2 {
-            println!("{:?}", String::from_utf8_lossy(&cl[1]));
+        buff.clear();
+        buffer.clear();
+        for item in body.clone() {
+            println!("{}", item.content_type.as_str());
         }
 
-        self.body = Some(buffer);
+        self.body = Some(body);
     }
 }
 fn replace_bytes(buffer: &mut Vec<u8>, target: &[u8], replacement: &[u8]) {

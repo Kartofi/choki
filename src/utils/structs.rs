@@ -310,3 +310,65 @@ impl<T: Clone + std::marker::Send + 'static> EndPoint<T> {
         };
     }
 }
+#[derive(Clone)]
+pub struct BodyItem {
+    pub content_type: ContentType,
+    pub name: Option<String>,
+
+    pub file_name: Option<String>, // Special only for files
+
+    pub value: Vec<u8>,
+}
+
+impl BodyItem {
+    pub fn default() -> BodyItem {
+        return BodyItem {
+            content_type: ContentType::None,
+            name: None,
+            file_name: None,
+            value: Vec::new(),
+        };
+    }
+    pub fn new_simple(content_type: ContentType, value: Vec<u8>) -> BodyItem {
+        return BodyItem {
+            content_type: content_type,
+            name: None,
+            file_name: None,
+            value: value,
+        };
+    }
+
+    pub fn from_str(input: &str) -> BodyItem {
+        println!("{:?}", input);
+        let lines: Vec<&str> = input.lines().collect();
+
+        let mut body_item = BodyItem::default();
+
+        if lines.len() == 0 {
+            return body_item;
+        }
+
+        let mut parts: Vec<&str> = Vec::new();
+
+        if lines.len() > 1 {
+            parts = lines[1].split(": ").collect();
+            if parts.len() > 1 {
+                body_item.content_type = ContentType::from_string(parts[1]);
+            } else {
+                return BodyItem::default();
+            }
+        } else {
+            body_item.content_type = ContentType::MultipartForm;
+        }
+
+        parts = lines[0].split("; ").collect();
+
+        if parts.len() != 3 {
+            return BodyItem::default();
+        }
+        body_item.name = Some(parts[1].replace("name=\"", ""));
+        body_item.file_name = Some(parts[2].to_string());
+        println!("{:?}", body_item.name);
+        return body_item;
+    }
+}
