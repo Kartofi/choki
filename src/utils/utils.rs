@@ -1,5 +1,7 @@
 pub fn count_char_occurrences(s: &str, target: char) -> usize {
-    s.chars().filter(|&c| c == target).count()
+    s.chars()
+        .filter(|&c| c == target)
+        .count()
 }
 pub fn map_compression_level(compression_float: f32) -> u32 {
     if compression_float <= 0.0 {

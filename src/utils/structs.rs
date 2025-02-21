@@ -1,6 +1,6 @@
-use std::{collections::HashMap, io::BufRead};
+use std::{ collections::HashMap, io::BufRead };
 
-use super::{request::Request, response::Response, utils::count_char_occurrences};
+use super::{ request::Request, response::Response, utils::count_char_occurrences };
 
 #[derive(Clone, PartialEq)]
 pub enum RequestType {
@@ -190,8 +190,14 @@ impl Url {
         Ok(Url::new(path.to_string(), req_type, query))
     }
     pub fn match_patern(input: &str, pattern: &str) -> (bool, HashMap<String, String>) {
-        let parts_input: Vec<&str> = input.split('/').filter(|a| a.len() > 0).collect();
-        let parts_pattern: Vec<&str> = pattern.split('/').filter(|a| a.len() > 0).collect();
+        let parts_input: Vec<&str> = input
+            .split('/')
+            .filter(|a| a.len() > 0)
+            .collect();
+        let parts_pattern: Vec<&str> = pattern
+            .split('/')
+            .filter(|a| a.len() > 0)
+            .collect();
 
         if parts_input.len() != parts_pattern.len() {
             return (false, HashMap::new());
@@ -298,7 +304,7 @@ impl<T: Clone + std::marker::Send + 'static> EndPoint<T> {
     pub fn new(
         path: String,
         req_type: RequestType,
-        handle: fn(req: Request, res: Response, public_var: Option<T>),
+        handle: fn(req: Request, res: Response, public_var: Option<T>)
     ) -> EndPoint<T> {
         if count_char_occurrences(&path, '[') != count_char_occurrences(&path, ']') {
             panic!("Syntax error in pattern: {}", path);
@@ -339,7 +345,6 @@ impl BodyItem {
     }
 
     pub fn from_str(input: &str) -> BodyItem {
-        println!("{:?}", input);
         let lines: Vec<&str> = input.lines().collect();
 
         let mut body_item = BodyItem::default();
@@ -363,12 +368,19 @@ impl BodyItem {
 
         parts = lines[0].split("; ").collect();
 
-        if parts.len() != 3 {
+        if parts.len() < 2 || (parts.len() != 3 && lines.len() == 2) {
             return BodyItem::default();
         }
-        body_item.name = Some(parts[1].replace("name=\"", ""));
-        body_item.file_name = Some(parts[2].to_string());
-        println!("{:?}", body_item.name);
+        if lines.len() == 2 {
+            body_item.file_name = Some(parts[2].to_string());
+        }
+        let name = parts[1].replace("name=\"", "");
+        if name.len() < 1 {
+            body_item.name = None;
+        } else {
+            body_item.name = Some(name[0..name.len() - 1].to_string());
+        }
+
         return body_item;
     }
 }

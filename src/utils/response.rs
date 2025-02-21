@@ -1,11 +1,8 @@
-use std::{
-    io::{BufReader, Read, Write},
-    net::TcpStream,
-};
+use std::{ io::{ BufReader, Read, Write }, net::TcpStream };
 
-use flate2::{write::GzEncoder, Compression};
+use flate2::{ write::GzEncoder, Compression };
 
-use crate::{utils::structs::*, Encoding};
+use crate::{ utils::structs::*, Encoding };
 
 use super::utils::map_compression_level;
 
@@ -60,7 +57,7 @@ impl Response {
         }
         let mut encoder = GzEncoder::new(
             Vec::new(),
-            Compression::new(map_compression_level(compression_level)),
+            Compression::new(map_compression_level(compression_level))
         );
         encoder.write_all(data).unwrap_or_default();
         let compressed_data = encoder.finish().unwrap_or_default();
@@ -71,13 +68,13 @@ impl Response {
             return data.to_vec();
         }
         let encoding = self.content_encoding[0].clone();
-        if encoding.encoding_type == EncodingType::Any
-            || encoding.encoding_type == EncodingType::Gzip
+        if
+            encoding.encoding_type == EncodingType::Any ||
+            encoding.encoding_type == EncodingType::Gzip
         {
-            self.set_header(&Header::new(
-                "Content-Encoding".to_owned(),
-                EncodingType::Gzip.to_string(),
-            ));
+            self.set_header(
+                &Header::new("Content-Encoding".to_owned(), EncodingType::Gzip.to_string())
+            );
             return self.gzip_compress_data(data, encoding.quality);
         }
 
@@ -97,22 +94,19 @@ impl Response {
     pub fn send_string(&mut self, data: &str) {
         let compressed_data = self.prepare_data(data.as_bytes());
 
-        self.set_header(&Header::new(
-            "Content-type".to_string(),
-            ContentType::PlainText.as_str().to_string(),
-        ));
+        self.set_header(
+            &Header::new("Content-type".to_string(), ContentType::PlainText.as_str().to_string())
+        );
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
         let headers_set_headers = Header::generate_headers(&self.headers);
 
-        let response = "HTTP/1.1 200 OK".to_string()
-            + &headers_set_headers
-            + &cookies_set_headers
-            + "\r\n\r\n";
+        let response =
+            "HTTP/1.1 200 OK".to_string() +
+            &headers_set_headers +
+            &cookies_set_headers +
+            "\r\n\r\n";
 
-        match self
-            .stream
-            .write_all(&[response.as_bytes(), &compressed_data].concat())
-        {
+        match self.stream.write_all(&[response.as_bytes(), &compressed_data].concat()) {
             Ok(_res) => {}
             Err(_e) => {}
         }
@@ -124,22 +118,19 @@ impl Response {
     pub fn send_json(&mut self, data: &str) {
         let compressed_data = self.prepare_data(data.as_bytes());
 
-        self.set_header(&Header::new(
-            "Content-type".to_string(),
-            ContentType::Json.as_str().to_string(),
-        ));
+        self.set_header(
+            &Header::new("Content-type".to_string(), ContentType::Json.as_str().to_string())
+        );
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
         let headers_set_headers = Header::generate_headers(&self.headers);
 
-        let response = "HTTP/1.1 200 OK".to_string()
-            + &headers_set_headers
-            + &cookies_set_headers
-            + "\r\n\r\n";
+        let response =
+            "HTTP/1.1 200 OK".to_string() +
+            &headers_set_headers +
+            &cookies_set_headers +
+            "\r\n\r\n";
 
-        match self
-            .stream
-            .write_all(&[response.as_bytes(), &compressed_data].concat())
-        {
+        match self.stream.write_all(&[response.as_bytes(), &compressed_data].concat()) {
             Ok(_res) => {}
             Err(_e) => {}
         }
@@ -154,22 +145,14 @@ impl Response {
 
         let compressed_data = self.prepare_data(data);
 
-        self.headers.push(Header::new(
-            "Content-type".to_string(),
-            content_type.as_str().to_string(),
-        ));
-        self.headers.push(Header::new(
-            "Content-length".to_string(),
-            compressed_data.len().to_string(),
-        ));
-        self.headers.push(Header::new(
-            "Transfer-Encoding".to_string(),
-            "chunked".to_string(),
-        ));
-        self.headers.push(Header::new(
-            "Connection".to_string(),
-            "keep-alive".to_string(),
-        ));
+        self.headers.push(
+            Header::new("Content-type".to_string(), content_type.as_str().to_string())
+        );
+        self.headers.push(
+            Header::new("Content-length".to_string(), compressed_data.len().to_string())
+        );
+        self.headers.push(Header::new("Transfer-Encoding".to_string(), "chunked".to_string()));
+        self.headers.push(Header::new("Connection".to_string(), "keep-alive".to_string()));
 
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
 
@@ -194,10 +177,7 @@ impl Response {
             let chunk = &compressed_data[start..end];
 
             // Write the chunk size in hexadecimal, followed by CRLF
-            if let Err(e) = self
-                .stream
-                .write_all(format!("{:X}\r\n", chunk.len()).as_bytes())
-            {
+            if let Err(e) = self.stream.write_all(format!("{:X}\r\n", chunk.len()).as_bytes()) {
                 eprintln!("Failed to write chunk size: {}", e);
                 return;
             }
@@ -229,22 +209,13 @@ impl Response {
     pub fn pipe_stream(
         &mut self,
         mut stream: BufReader<impl Read>,
-        content_type: Option<ContentType>,
+        content_type: Option<ContentType>
     ) {
         if let Some(ct) = content_type {
-            self.headers.push(Header::new(
-                "Content-Type".to_string(),
-                ct.as_str().to_owned(),
-            ));
+            self.headers.push(Header::new("Content-Type".to_string(), ct.as_str().to_owned()));
         }
-        self.headers.push(Header::new(
-            "Transfer-Encoding".to_string(),
-            "chunked".to_string(),
-        ));
-        self.headers.push(Header::new(
-            "Connection".to_string(),
-            "keep-alive".to_string(),
-        ));
+        self.headers.push(Header::new("Transfer-Encoding".to_string(), "chunked".to_string()));
+        self.headers.push(Header::new("Connection".to_string(), "keep-alive".to_string()));
 
         let headers_set_headers = Header::generate_headers(&self.headers);
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
@@ -264,7 +235,9 @@ impl Response {
 
         loop {
             match stream.read(&mut buffer) {
-                Ok(0) => break, // EOF reached
+                Ok(0) => {
+                    break;
+                } // EOF reached
                 Ok(n) => {
                     if let Err(e) = self.stream.write_all(format!("{:X}\r\n", n).as_bytes()) {
                         eprintln!("Failed to write chunk size: {}", e);
@@ -300,25 +273,30 @@ impl Response {
     // Send Download
     pub fn send_download_bytes(&mut self, data: &[u8], file_name: &str) {
         self.use_encoding = false;
-        self.headers.push(Header::new(
-            "Content-Disposition".to_string(),
-            "attachment; filename=".to_string() + file_name,
-        ));
+        self.headers.push(
+            Header::new(
+                "Content-Disposition".to_string(),
+                "attachment; filename=".to_string() + file_name
+            )
+        );
         self.send_bytes(data, Some(ContentType::OctetStream));
     }
     pub fn send_download_stream(&mut self, mut stream: BufReader<impl Read>, file_name: &str) {
         self.use_encoding = false;
-        self.headers.push(Header::new(
-            "Content-Disposition".to_string(),
-            "attachment; filename=".to_string() + file_name,
-        ));
+        self.headers.push(
+            Header::new(
+                "Content-Disposition".to_string(),
+                "attachment; filename=".to_string() + file_name
+            )
+        );
         self.pipe_stream(stream, Some(ContentType::OctetStream));
     }
     //Sends a response code (404, 200...)
     pub fn send_code(&mut self, code: usize) {
-        let mut response = "HTTP/1.1 ".to_owned()
-            + &code.to_string()
-            + (match code {
+        let mut response =
+            "HTTP/1.1 ".to_owned() +
+            &code.to_string() +
+            (match code {
                 100 => " Continue",
                 404 => " NOT FOUND\r\n\r\nPAGE NOT FOUND",
                 413 => " Content Too Large",
