@@ -14,6 +14,7 @@ pub struct Request {
     pub boudary: Option<String>,
     pub body: Option<Vec<BodyItem>>,
 }
+
 impl Request {
     pub fn new(
         query: HashMap<String, String>,
@@ -133,7 +134,7 @@ impl Request {
         return req;
     }
 
-    pub fn extract_body(&mut self, bfreader: &mut BufReader<TcpStream>) {
+    pub fn extract_body(&mut self, bfreader: &mut BufReader<TcpStream>) -> Option<Vec<BodyItem>> {
         let mut total_size = 0;
 
         let mut buffer: Vec<u8> = Vec::new();
@@ -165,8 +166,7 @@ impl Request {
 
         if content_type != ContentType::MultipartForm {
             body.push(BodyItem::new_simple(content_type, buffer));
-            self.body = Some(body);
-            return;
+            return Some(body);
         }
         let boundary = (&self.boudary.clone().unwrap()).as_bytes().to_owned();
 
@@ -214,12 +214,14 @@ impl Request {
                 buff = split_buffer(&buffer[start..end], "\r\n\r\n".as_bytes()).to_vec();
 
                 body_item = BodyItem::from_str(&String::from_utf8_lossy(&buff[0]));
-                //body_item.value = buff[1].clone();
+                body_item.value = buff.swap_remove(1).to_owned();
+
+                buff.remove(1);
+
                 body.push(body_item);
             }
         }
-
-        self.body = Some(body);
+        return Some(body);
     }
 }
 fn replace_bytes(buffer: &mut Vec<u8>, target: &[u8], replacement: &[u8]) {

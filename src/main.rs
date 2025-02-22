@@ -15,16 +15,11 @@ fn main() {
         .unwrap();
     server
         .post("/", |req: Request, mut res: Response, public_var: Option<u8>| {
-            let str = req.user_agent.unwrap();
-
             res.send_string("ddd");
         })
         .unwrap();
     server
         .post("/filetest", |req: Request, mut res: Response, public_var: Option<u8>| {
-            let str = req.user_agent.unwrap();
-            let body = req.body.unwrap_or_default();
-
             res.send_code(200);
             //println!("{}", String::from_utf8_lossy(&req.body.unwrap()));
         })
