@@ -12,7 +12,10 @@ pub struct Request {
     // BODY
     pub content_type: Option<ContentType>,
     pub boudary: Option<String>,
-    pub body: Option<Vec<BodyItem>>,
+
+    body: Vec<BodyItemInfo>,
+    body_data_segments: Vec<(usize, usize)>,
+    buffer: Vec<u8>,
 }
 
 impl Request {
@@ -25,8 +28,7 @@ impl Request {
         content_length: usize,
 
         content_type: Option<ContentType>,
-        boudary: Option<String>,
-        body: Option<Vec<BodyItem>>
+        boudary: Option<String>
     ) -> Request {
         return Request {
             query: query,
@@ -38,7 +40,10 @@ impl Request {
 
             content_type: content_type,
             boudary: boudary,
-            body: body,
+
+            body: Vec::new(),
+            body_data_segments: Vec::new(),
+            buffer: Vec::new(),
         };
     }
     pub fn parse(
@@ -53,7 +58,6 @@ impl Request {
             None,
             None,
             0,
-            None,
             None,
             None
         );
@@ -133,13 +137,24 @@ impl Request {
         }
         return req;
     }
-
-    pub fn extract_body(&mut self, bfreader: &mut BufReader<TcpStream>) -> Option<Vec<BodyItem>> {
+    // Body Stuff
+    pub fn body(&mut self) -> Vec<BodyItem> {
+        let mut res: Vec<BodyItem> = Vec::new();
+        for i in 0..self.body.len() {
+            res.push(
+                BodyItem::new(
+                    &self.body[i],
+                    &self.buffer[self.body_data_segments[i].0..self.body_data_segments[i].1]
+                )
+            );
+        }
+        return res;
+    }
+    pub fn extract_body(&mut self, bfreader: &mut BufReader<TcpStream>) {
         let mut total_size = 0;
 
-        let mut buffer: Vec<u8> = Vec::new();
         let mut buffer2: [u8; 4096] = [0; 4096];
-        let mut body: Vec<BodyItem> = Vec::new();
+        let mut body: Vec<BodyItemInfo> = Vec::new();
 
         loop {
             match bfreader.read(&mut buffer2) {
@@ -151,7 +166,7 @@ impl Request {
                         total_size,
                         self.content_length
                     );
-                    buffer.extend_from_slice(&buffer2[..size]);
+                    self.buffer.extend_from_slice(&buffer2[..size]);
                     if size == 0 || total_size >= self.content_length {
                         break; // End of file
                     }
@@ -165,27 +180,30 @@ impl Request {
         let content_type = self.content_type.as_ref().unwrap().clone();
 
         if content_type != ContentType::MultipartForm {
-            body.push(BodyItem::new_simple(content_type, buffer));
-            return Some(body);
+            body.push(BodyItemInfo::new_simple(content_type));
+
+            self.body = body;
+            self.body_data_segments.push((0, self.buffer.len()));
+            return;
         }
         let boundary = (&self.boudary.clone().unwrap()).as_bytes().to_owned();
 
-        replace_bytes(&mut buffer, "\r\n--".as_bytes(), "".as_bytes());
-        replace_bytes(&mut buffer, "\r\nContent-Di".as_bytes(), "Content-Di".as_bytes());
+        replace_bytes(&mut self.buffer, "\r\n--".as_bytes(), "".as_bytes());
+        replace_bytes(&mut self.buffer, "\r\nContent-Di".as_bytes(), "Content-Di".as_bytes());
 
         let mut segments: Vec<(usize, usize)> = Vec::new();
 
-        for index in 0..buffer.len() {
+        for index in 0..self.buffer.len() {
             let mut first_match: usize = usize::MAX;
 
             let mut matches = 0;
 
-            if index + boundary.len() > buffer.len() {
+            if index + boundary.len() > self.buffer.len() {
                 break;
             }
 
             for index2 in index..index + boundary.len() {
-                if boundary[matches] == buffer[index2] {
+                if boundary[matches] == self.buffer[index2] {
                     matches += 1;
 
                     if first_match == usize::MAX {
@@ -206,24 +224,36 @@ impl Request {
             }
         }
 
-        let mut buff: Vec<&[u8]> = Vec::new();
-        let mut body_item: BodyItem = BodyItem::default();
+        let mut data_indexes: Vec<(usize, usize)> = Vec::new();
+        let mut body_item_info: BodyItemInfo = BodyItemInfo::default();
 
         for (start, end) in segments {
             if start < end {
-                buff = split_buffer(&buffer[start..end], "\r\n\r\n".as_bytes()).to_vec();
+                data_indexes = split_buffer_inxeses(
+                    &self.buffer[start..end],
+                    "\r\n\r\n".as_bytes()
+                );
 
-                body_item = BodyItem::from_str(&String::from_utf8_lossy(&buff[0]));
-                body_item.value = buff.swap_remove(1).to_owned();
+                body_item_info = BodyItemInfo::from_str(
+                    &String::from_utf8_lossy(
+                        &self.buffer[data_indexes[0].0 + start..data_indexes[0].1 + start]
+                    )
+                );
+                self.body_data_segments.push((
+                    data_indexes[1].0 + start,
+                    data_indexes[1].1 + start,
+                ));
 
-                buff.remove(1);
+                body.push(body_item_info);
 
-                body.push(body_item);
+                //Empty data after use
+                data_indexes.clear();
             }
         }
-        return Some(body);
+        self.body = body;
     }
 }
+
 fn replace_bytes(buffer: &mut Vec<u8>, target: &[u8], replacement: &[u8]) {
     let mut i = 0;
     while i <= buffer.len() - target.len() {
@@ -235,21 +265,24 @@ fn replace_bytes(buffer: &mut Vec<u8>, target: &[u8], replacement: &[u8]) {
         }
     }
 }
-fn split_buffer<'a>(buffer: &'a [u8], delimiter: &'a [u8]) -> Vec<&'a [u8]> {
+
+fn split_buffer_inxeses(buffer: &[u8], delimiter: &[u8]) -> Vec<(usize, usize)> {
     let mut segments = Vec::new();
     let mut start = 0;
 
     let mut i = 0;
     while i <= buffer.len() - delimiter.len() {
         if &buffer[i..i + delimiter.len()] == delimiter {
-            segments.push(&buffer[start..i]);
+            // Push the start and end indices of the segment
+            segments.push((start, i));
             start = i + delimiter.len();
             i += delimiter.len();
         } else {
             i += 1;
         }
     }
-    segments.push(&buffer[start..]);
+    // Push the last segment
+    segments.push((start, buffer.len()));
 
     segments
 }

@@ -19,9 +19,10 @@ fn main() {
         })
         .unwrap();
     server
-        .post("/filetest", |req: Request, mut res: Response, public_var: Option<u8>| {
+        .post("/filetest", |mut req: Request, mut res: Response, public_var: Option<u8>| {
             res.send_code(200);
-            //println!("{}", String::from_utf8_lossy(&req.body.unwrap()));
+            let body = req.body();
+            println!("{}", String::from_utf8_lossy(body[0].data));
         })
         .unwrap();
     server

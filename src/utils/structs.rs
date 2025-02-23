@@ -317,37 +317,33 @@ impl<T: Clone + std::marker::Send + 'static> EndPoint<T> {
     }
 }
 #[derive(Clone)]
-pub struct BodyItem {
+pub struct BodyItemInfo {
     pub content_type: ContentType,
     pub name: Option<String>,
 
     pub file_name: Option<String>, // Special only for files
-
-    pub value: Vec<u8>,
 }
 
-impl BodyItem {
-    pub fn default() -> BodyItem {
-        return BodyItem {
+impl BodyItemInfo {
+    pub fn default() -> BodyItemInfo {
+        return BodyItemInfo {
             content_type: ContentType::None,
             name: None,
             file_name: None,
-            value: Vec::new(),
         };
     }
-    pub fn new_simple(content_type: ContentType, value: Vec<u8>) -> BodyItem {
-        return BodyItem {
+    pub fn new_simple(content_type: ContentType) -> BodyItemInfo {
+        return BodyItemInfo {
             content_type: content_type,
             name: None,
             file_name: None,
-            value: value,
         };
     }
 
-    pub fn from_str(input: &str) -> BodyItem {
+    pub fn from_str(input: &str) -> BodyItemInfo {
         let lines: Vec<&str> = input.lines().collect();
 
-        let mut body_item = BodyItem::default();
+        let mut body_item = BodyItemInfo::default();
 
         if lines.len() == 0 {
             return body_item;
@@ -360,7 +356,7 @@ impl BodyItem {
             if parts.len() > 1 {
                 body_item.content_type = ContentType::from_string(parts[1]);
             } else {
-                return BodyItem::default();
+                return BodyItemInfo::default();
             }
         } else {
             body_item.content_type = ContentType::MultipartForm;
@@ -369,7 +365,7 @@ impl BodyItem {
         parts = lines[0].split("; ").collect();
 
         if parts.len() < 2 || (parts.len() != 3 && lines.len() == 2) {
-            return BodyItem::default();
+            return BodyItemInfo::default();
         }
         if lines.len() == 2 {
             body_item.file_name = Some(parts[2].to_string());
@@ -382,5 +378,18 @@ impl BodyItem {
         }
 
         return body_item;
+    }
+}
+
+pub struct BodyItem<'a> {
+    pub info: &'a BodyItemInfo,
+    pub data: &'a [u8],
+}
+impl<'a> BodyItem<'a> {
+    pub fn new(info: &'a BodyItemInfo, data: &'a [u8]) -> BodyItem<'a> {
+        return BodyItem {
+            info: info,
+            data: data,
+        };
     }
 }
