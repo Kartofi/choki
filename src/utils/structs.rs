@@ -4,8 +4,18 @@ use super::{ request::Request, response::Response, utils::count_char_occurrences
 
 #[derive(Clone, PartialEq)]
 pub enum RequestType {
+    Unknown = 0,
     Get = 1,
     Post = 2,
+}
+impl RequestType {
+    pub fn from_string(input: &str) -> RequestType {
+        match input.to_lowercase().as_str() {
+            "get" => RequestType::Get,
+            "post" => RequestType::Post,
+            _ => RequestType::Unknown,
+        }
+    }
 }
 #[derive(Clone, PartialEq)]
 pub enum EncodingType {
@@ -155,11 +165,7 @@ impl Url {
         if parts.len() != 3 {
             return Err(HttpServerError::new("Invalid input.".to_string()));
         }
-        let req_type: RequestType = if parts[0].to_lowercase() == "get" {
-            RequestType::Get
-        } else {
-            RequestType::Post
-        };
+        let req_type: RequestType = RequestType::from_string(&parts[0].to_lowercase());
 
         let mut path: &str = parts[1];
         let mut query: HashMap<String, String> = HashMap::new();
@@ -254,7 +260,7 @@ impl Cookie {
     pub fn generate_set_cookie_headers(cookies: &Vec<Cookie>) -> String {
         cookies
             .iter()
-            .map(|cookie| format!("\nSet-Cookie: {}", cookie.as_str()))
+            .map(|cookie| format!("\r\nSet-Cookie: {}", cookie.as_str()))
             .collect()
     }
 }
@@ -286,7 +292,7 @@ impl Header {
         for header in headers {
             headers_str.push_str(&header.as_str());
             if last_header != header.name {
-                headers_str.push_str("\n");
+                headers_str.push_str("\r\n");
             }
         }
         headers_str

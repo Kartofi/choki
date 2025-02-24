@@ -169,7 +169,6 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
 
                         line = "".to_string();
                     }
-
                     let lines: Vec<&str> = headers_string.lines().collect();
 
                     if lines.len() <= 1 {
@@ -184,72 +183,73 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                         stream.try_clone().unwrap(),
                         content_encoding.clone()
                     );
-
+                    // Check if supported req type
+                    if req_url.req_type == RequestType::Unknown {
+                        req.read_only_body(&mut bfreader);
+                        res.send_code(405);
+                        return;
+                    }
+                    // Check if body in GET
+                    if req.content_type.is_some() && req_url.req_type == RequestType::Get {
+                        req.read_only_body(&mut bfreader);
+                        res.send_code(400);
+                        return;
+                    }
+                    //Check if over content length
                     if
                         max_content_length_clone > 0 &&
                         req.content_length > max_content_length_clone
                     {
+                        req.read_only_body(&mut bfreader);
                         res.send_code(413);
                         return;
-                    } else {
-                        let mut sent: bool = false;
-                        for route in routes_clone {
-                            let match_pattern = Url::match_patern(
-                                &req_url.path.clone(),
-                                &route.path.clone()
-                            );
-                            if match_pattern.0 == true && req_url.req_type == route.req_type {
-                                req.params = match_pattern.1;
-                                if
-                                    req.content_type.is_some() &&
-                                    req_url.req_type != RequestType::Get
-                                {
-                                    req.extract_body(&mut bfreader);
-                                }
-                                (route.handle)(req, res, public_var_clone);
-                                sent = true;
-                                break;
-                            }
-                        }
-                        if sent == false {
-                            let mut res2 = Response::new(
-                                stream.try_clone().unwrap(),
-                                content_encoding
-                            );
+                    }
 
-                            for route in static_routes_clone {
-                                if req_url.path.starts_with(&route.0) {
-                                    let parts: Vec<&str> = req_url.path.split(&route.0).collect();
-                                    if parts.len() == 0 {
-                                        continue;
-                                    }
-                                    let path_str = route.1 + parts[1];
-                                    let path = Path::new(&path_str);
-
-                                    if path.exists() && path.is_file() {
-                                        match File::open(path) {
-                                            Ok(file) => {
-                                                let bfreader = BufReader::new(file);
-                                                res2.pipe_stream(bfreader, None);
-                                            }
-                                            Err(_err) => {
-                                                res2.send_code(404);
-                                            }
-                                        }
-                                    } else {
-                                        res2.send_code(404);
-                                    }
-
-                                    sent = true;
-                                    break;
-                                }
+                    for route in routes_clone {
+                        let match_pattern = Url::match_patern(
+                            &req_url.path.clone(),
+                            &route.path.clone()
+                        );
+                        if match_pattern.0 == true && req_url.req_type == route.req_type {
+                            req.params = match_pattern.1;
+                            if req.content_type.is_some() {
+                                req.extract_body(&mut bfreader);
                             }
-                            if sent == false {
-                                res2.send_code(404);
-                            }
+                            (route.handle)(req, res, public_var_clone);
+                            return;
                         }
                     }
-                    stream.flush().expect("Failed to flush");
+                    let mut sent = false;
+                    for route in static_routes_clone {
+                        if req_url.path.starts_with(&route.0) {
+                            let parts: Vec<&str> = req_url.path.split(&route.0).collect();
+                            if parts.len() == 0 {
+                                continue;
+                            }
+                            let path_str = route.1 + parts[1];
+                            let path = Path::new(&path_str);
+
+                            if path.exists() && path.is_file() {
+                                match File::open(path) {
+                                    Ok(file) => {
+                                        let bfreader = BufReader::new(file);
+                                        res.pipe_stream(bfreader, None);
+                                    }
+                                    Err(_err) => {
+                                        res.send_code(404);
+                                    }
+                                }
+                            } else {
+                                res.send_code(404);
+                            }
+
+                            sent = true;
+                            break;
+                        }
+                    }
+                    if sent == false {
+                        res.send_code(404);
+                    }
                 });
             }
         });

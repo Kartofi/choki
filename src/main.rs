@@ -7,7 +7,7 @@ use choki::utils::structs::ContentType;
 use choki::Server;
 
 fn main() {
-    let mut server: Server<u8> = Server::new(None, None);
+    let mut server: Server<u8> = Server::new(Some(10_000_000), None);
     server
         .get("/watch/[id]", |req: Request, mut res: Response, public_var: Option<u8>| {
             res.send_string("HI");

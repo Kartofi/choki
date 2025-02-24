@@ -139,25 +139,31 @@ impl Request {
     }
     // Body Stuff
     pub fn body(&mut self) -> Vec<BodyItem> {
+        if self.body.len() == 0 {
+            return Vec::new();
+        }
+
         let mut res: Vec<BodyItem> = Vec::new();
+
+        let mut temp: &[u8] = &[];
+
         for i in 0..self.body.len() {
-            res.push(
-                BodyItem::new(
-                    &self.body[i],
-                    &self.buffer[self.body_data_segments[i].0..self.body_data_segments[i].1]
-                )
-            );
+            if i < self.body_data_segments.len() {
+                temp = &self.buffer[self.body_data_segments[i].0..self.body_data_segments[i].1];
+            }
+
+            res.push(BodyItem::new(&self.body[i], temp));
+            temp = &[];
         }
         return res;
     }
     pub fn extract_body(&mut self, bfreader: &mut BufReader<TcpStream>) {
         let mut total_size = 0;
 
-        let mut buffer2: [u8; 4096] = [0; 4096];
-        let mut body: Vec<BodyItemInfo> = Vec::new();
+        let mut buffer: [u8; 4096] = [0; 4096];
 
         loop {
-            match bfreader.read(&mut buffer2) {
+            match bfreader.read(&mut buffer) {
                 Ok(size) => {
                     total_size += size;
                     println!(
@@ -166,7 +172,7 @@ impl Request {
                         total_size,
                         self.content_length
                     );
-                    self.buffer.extend_from_slice(&buffer2[..size]);
+                    self.buffer.extend_from_slice(&buffer[..size]);
                     if size == 0 || total_size >= self.content_length {
                         break; // End of file
                     }
@@ -180,9 +186,8 @@ impl Request {
         let content_type = self.content_type.as_ref().unwrap().clone();
 
         if content_type != ContentType::MultipartForm {
-            body.push(BodyItemInfo::new_simple(content_type));
+            self.body.push(BodyItemInfo::new_simple(content_type));
 
-            self.body = body;
             self.body_data_segments.push((0, self.buffer.len()));
             return;
         }
@@ -244,13 +249,36 @@ impl Request {
                     data_indexes[1].1 + start,
                 ));
 
-                body.push(body_item_info);
+                self.body.push(body_item_info);
 
                 //Empty data after use
                 data_indexes.clear();
             }
         }
-        self.body = body;
+    }
+    pub fn read_only_body(&self, bfreader: &mut BufReader<TcpStream>) {
+        let mut total_size = 0;
+        let mut buffer: [u8; 4096] = [0; 4096];
+
+        loop {
+            match bfreader.read(&mut buffer) {
+                Ok(size) => {
+                    total_size += size;
+                    println!(
+                        "Read {} bytes, total: {} / expected: {}",
+                        size,
+                        total_size,
+                        self.content_length
+                    );
+                    if size == 0 || total_size >= self.content_length {
+                        break; // End of file
+                    }
+                }
+                Err(_) => {
+                    break;
+                }
+            }
+        }
     }
 }
 

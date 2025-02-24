@@ -293,24 +293,34 @@ impl Response {
     }
     //Sends a response code (404, 200...)
     pub fn send_code(&mut self, code: usize) {
+        fn code_to_str(code: usize) -> String {
+            match code {
+                100 => "Continue".to_owned(),
+                400 => "Bad Request".to_owned(),
+                404 => "NOT FOUND".to_owned(),
+                405 => "Method Not Allowed".to_owned(),
+                413 => "Content Too Large".to_owned(),
+                _ => " OK".to_owned(),
+            }
+        }
         let mut response =
-            "HTTP/1.1 ".to_owned() +
-            &code.to_string() +
-            (match code {
-                100 => " Continue",
-                404 => " NOT FOUND\r\n\r\nPAGE NOT FOUND",
-                413 => " Content Too Large",
-                _ => " OK\r\n\r\n",
-            });
+            "HTTP/1.1 ".to_owned() + &code.to_string() + &(" ".to_owned() + &code_to_str(code));
+
+        self.set_header(&Header::new("Content-Type".to_owned(), "text/plain".to_owned()));
+        self.set_header(
+            &Header::new("Content-Length".to_owned(), code_to_str(code).len().to_string())
+        );
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
         let headers_set_headers = Header::generate_headers(&self.headers);
-        response += &cookies_set_headers;
         response += &headers_set_headers;
+        response += &cookies_set_headers;
 
+        response += &("\r\n\r\n".to_owned() + &code_to_str(code));
         match self.stream.write_all(response.as_bytes()) {
             Ok(_res) => {}
             Err(_e) => {}
         }
+        println!("{}", response);
     }
     // Get raw stream
     pub fn get_stream(&mut self) -> &TcpStream {
