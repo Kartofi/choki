@@ -71,6 +71,7 @@ pub enum ContentType {
     JavascriptApp,
     Zip,
     MultipartForm,
+    UrlEncoded,
     // Image Types
     Jpeg,
     Png,
@@ -100,6 +101,7 @@ impl ContentType {
             ContentType::Zip => "application/zip",
             ContentType::OctetStream => "application/octet-stream",
             ContentType::MultipartForm => "multipart/form-data",
+            ContentType::UrlEncoded => "application/x-www-form-urlencoded",
             // Image Types
             ContentType::Jpeg => "image/jpeg",
             ContentType::Png => "image/png",
@@ -126,6 +128,7 @@ impl ContentType {
             "application/zip" => ContentType::Zip,
             "application/octet-stream" => ContentType::OctetStream,
             "multipart/form-data" => ContentType::MultipartForm,
+            "application/x-www-form-urlencoded" => ContentType::UrlEncoded,
             // Image Types
             "image/jpeg" => ContentType::Jpeg,
             "image/png" => ContentType::Png,
@@ -328,6 +331,8 @@ pub struct BodyItemInfo {
     pub name: Option<String>,
 
     pub file_name: Option<String>, // Special only for files
+
+    value: Option<String>,
 }
 
 impl BodyItemInfo {
@@ -336,6 +341,7 @@ impl BodyItemInfo {
             content_type: ContentType::None,
             name: None,
             file_name: None,
+            value: None,
         };
     }
     pub fn new_simple(content_type: ContentType) -> BodyItemInfo {
@@ -343,9 +349,20 @@ impl BodyItemInfo {
             content_type: content_type,
             name: None,
             file_name: None,
+            value: None,
         };
     }
-
+    pub fn new_url(name: String, value: String) -> BodyItemInfo {
+        return BodyItemInfo {
+            content_type: ContentType::UrlEncoded,
+            name: Some(name),
+            file_name: None,
+            value: Some(value),
+        };
+    }
+    pub fn to_body_item(&self) -> BodyItem {
+        return BodyItem::new_url(self, self.value.clone().unwrap_or_default());
+    }
     pub fn from_str(input: &str) -> BodyItemInfo {
         let lines: Vec<&str> = input.lines().collect();
 
@@ -390,12 +407,21 @@ impl BodyItemInfo {
 pub struct BodyItem<'a> {
     pub info: &'a BodyItemInfo,
     pub data: &'a [u8],
+    pub value: String,
 }
 impl<'a> BodyItem<'a> {
     pub fn new(info: &'a BodyItemInfo, data: &'a [u8]) -> BodyItem<'a> {
         return BodyItem {
             info: info,
             data: data,
+            value: "".to_owned(),
+        };
+    }
+    pub fn new_url(info: &'a BodyItemInfo, value: String) -> BodyItem<'a> {
+        return BodyItem {
+            info: info,
+            data: &[],
+            value: value,
         };
     }
 }

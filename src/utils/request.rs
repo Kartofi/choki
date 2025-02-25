@@ -138,7 +138,7 @@ impl Request {
         return req;
     }
     // Body Stuff
-    pub fn body(&mut self) -> Vec<BodyItem> {
+    pub fn body(&self) -> Vec<BodyItem> {
         if self.body.len() == 0 {
             return Vec::new();
         }
@@ -147,12 +147,21 @@ impl Request {
 
         let mut temp: &[u8] = &[];
 
+        let mut index = 0;
         for i in 0..self.body.len() {
-            if i < self.body_data_segments.len() {
-                temp = &self.buffer[self.body_data_segments[i].0..self.body_data_segments[i].1];
+            let body_info = &self.body[i];
+            if body_info.content_type == ContentType::UrlEncoded {
+                res.push(body_info.to_body_item());
+                continue;
+            }
+            if index < self.body_data_segments.len() {
+                temp =
+                    &self.buffer
+                        [self.body_data_segments[index].0..self.body_data_segments[index].1];
             }
 
-            res.push(BodyItem::new(&self.body[i], temp));
+            index += 1;
+            res.push(BodyItem::new(body_info, temp));
             temp = &[];
         }
         return res;
@@ -166,12 +175,7 @@ impl Request {
             match bfreader.read(&mut buffer) {
                 Ok(size) => {
                     total_size += size;
-                    println!(
-                        "Read {} bytes, total: {} / expected: {}",
-                        size,
-                        total_size,
-                        self.content_length
-                    );
+
                     self.buffer.extend_from_slice(&buffer[..size]);
                     if size == 0 || total_size >= self.content_length {
                         break; // End of file
@@ -184,10 +188,26 @@ impl Request {
         }
 
         let content_type = self.content_type.as_ref().unwrap().clone();
+        if content_type == ContentType::UrlEncoded {
+            let string_buffer = String::from_utf8_lossy(&self.buffer).to_string();
 
+            let parts: Vec<&str> = string_buffer.split("&").collect();
+
+            for part in parts {
+                let key_value: Vec<&str> = part.split("=").collect();
+                if key_value.len() == 2 {
+                    let body_item = BodyItemInfo::new_url(
+                        key_value[0].to_owned(),
+                        key_value[1].to_owned()
+                    );
+
+                    self.body.push(body_item);
+                }
+            }
+            return;
+        }
         if content_type != ContentType::MultipartForm {
             self.body.push(BodyItemInfo::new_simple(content_type));
-
             self.body_data_segments.push((0, self.buffer.len()));
             return;
         }
@@ -264,12 +284,6 @@ impl Request {
             match bfreader.read(&mut buffer) {
                 Ok(size) => {
                     total_size += size;
-                    println!(
-                        "Read {} bytes, total: {} / expected: {}",
-                        size,
-                        total_size,
-                        self.content_length
-                    );
                     if size == 0 || total_size >= self.content_length {
                         break; // End of file
                     }

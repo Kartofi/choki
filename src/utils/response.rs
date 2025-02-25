@@ -300,7 +300,7 @@ impl Response {
                 404 => "NOT FOUND".to_owned(),
                 405 => "Method Not Allowed".to_owned(),
                 413 => "Content Too Large".to_owned(),
-                _ => " OK".to_owned(),
+                _ => "OK".to_owned(),
             }
         }
         let mut response =
@@ -320,7 +320,6 @@ impl Response {
             Ok(_res) => {}
             Err(_e) => {}
         }
-        println!("{}", response);
     }
     // Get raw stream
     pub fn get_stream(&mut self) -> &TcpStream {

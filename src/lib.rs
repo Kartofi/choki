@@ -3,7 +3,7 @@ use std::fmt::write;
 use std::fs::File;
 use std::path::Path;
 use std::time::{ Duration, Instant };
-use std::{ fs, io, thread };
+use std::{ fs, io, thread, vec };
 use std::{ io::Write, net::* };
 
 use std::io::{ BufRead, BufReader, Error, Read };
@@ -144,7 +144,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 let public_var_clone = public_var.clone();
 
                 pool.execute(move || {
-                    let mut stream: TcpStream = stream.unwrap();
+                    let stream: TcpStream = stream.unwrap();
 
                     let mut bfreader: BufReader<TcpStream> = BufReader::new(
                         stream.try_clone().expect("Failed to create Buffer Reader")
@@ -184,13 +184,19 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                         content_encoding.clone()
                     );
                     // Check if supported req type
+                    let content_type = req.content_type.clone().unwrap_or(ContentType::None);
+
+                    let has_body = content_type != ContentType::None && req.content_length > 0;
                     if req_url.req_type == RequestType::Unknown {
-                        req.read_only_body(&mut bfreader);
+                        if has_body {
+                            req.read_only_body(&mut bfreader);
+                        }
+
                         res.send_code(405);
                         return;
                     }
                     // Check if body in GET
-                    if req.content_type.is_some() && req_url.req_type == RequestType::Get {
+                    if has_body && req_url.req_type == RequestType::Get {
                         req.read_only_body(&mut bfreader);
                         res.send_code(400);
                         return;
@@ -198,27 +204,53 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                     //Check if over content length
                     if
                         max_content_length_clone > 0 &&
-                        req.content_length > max_content_length_clone
+                        req.content_length > max_content_length_clone &&
+                        has_body
                     {
                         req.read_only_body(&mut bfreader);
                         res.send_code(413);
                         return;
                     }
+                    let mut matching_routes: Vec<
+                        (EndPoint<T>, HashMap<String, String>)
+                    > = Vec::new();
 
+                    // Check for matching pattern
                     for route in routes_clone {
                         let match_pattern = Url::match_patern(
                             &req_url.path.clone(),
                             &route.path.clone()
                         );
-                        if match_pattern.0 == true && req_url.req_type == route.req_type {
-                            req.params = match_pattern.1;
-                            if req.content_type.is_some() {
-                                req.extract_body(&mut bfreader);
-                            }
-                            (route.handle)(req, res, public_var_clone);
-                            return;
+                        if match_pattern.0 == true {
+                            matching_routes.push((route, match_pattern.1));
                         }
                     }
+
+                    if matching_routes.len() > 0 {
+                        let routes: Vec<(EndPoint<T>, HashMap<String, String>)> = matching_routes
+                            .into_iter()
+                            .filter(|route| route.0.req_type == req_url.req_type)
+                            .collect();
+
+                        if routes.len() == 0 {
+                            if has_body {
+                                req.read_only_body(&mut bfreader);
+                            }
+
+                            res.send_code(405); // Method not allowed
+                            return;
+                        }
+                        let route = &routes[0];
+
+                        req.params = route.1.to_owned();
+
+                        if has_body {
+                            req.extract_body(&mut bfreader);
+                        }
+                        (route.0.handle)(req, res, public_var_clone);
+                        return;
+                    }
+
                     let mut sent = false;
                     for route in static_routes_clone {
                         if req_url.path.starts_with(&route.0) {
