@@ -216,7 +216,11 @@ impl Url {
         }
         let mut params: HashMap<String, String> = HashMap::new();
         for i in 0..parts_input.len() {
-            if parts_input[i] != parts_pattern[i] && parts_pattern[i].contains("[") == false {
+            if
+                parts_input[i] != parts_pattern[i] &&
+                parts_pattern[i].contains("[") == false &&
+                parts_pattern[i].contains("]") == false
+            {
                 return (false, HashMap::new());
             }
             if parts_input[i] != parts_pattern[i] {
@@ -274,15 +278,15 @@ pub struct Header {
     pub value: String,
 }
 impl Header {
-    pub fn new(name: String, value: String) -> Header {
+    pub fn new(name: &str, value: &str) -> Header {
         return Header {
-            name: name,
-            value: value,
+            name: name.to_owned(),
+            value: value.to_owned(),
         };
     }
 
     pub fn as_str(&self) -> String {
-        let mut cookie_str = format!("{}: {}", self.name, self.value);
+        let cookie_str = format!("{}: {}", self.name, self.value);
 
         cookie_str
     }
@@ -332,7 +336,7 @@ pub struct BodyItemInfo {
 
     pub file_name: Option<String>, // Special only for files
 
-    value: Option<String>,
+    value: Option<String>, // Only for urlencoded
 }
 
 impl BodyItemInfo {

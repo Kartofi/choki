@@ -19,7 +19,7 @@ fn main() {
         })
         .unwrap();
     server
-        .post("/filetest", |mut req: Request, mut res: Response, public_var: Option<u8>| {
+        .post("/filetest", |req: Request, mut res: Response, public_var: Option<u8>| {
             res.send_code(200);
             let body = req.body();
             println!("{}", body.len());
@@ -32,7 +32,11 @@ fn main() {
         .unwrap();
     server
         .get("/", |req: Request, mut res: Response, public_var: Option<u8>| {
-            res.send_string("123");
+            let mut file = File::open("./tests/static/video.mkv").unwrap();
+            let size = file.metadata().unwrap().len();
+            let mut buf_reader = BufReader::new(file);
+
+            res.send_download_stream(buf_reader, "a.mkv", Some(&size));
         })
         .unwrap();
     server.new_static("/images", "./tests/static").unwrap();

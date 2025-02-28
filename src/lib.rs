@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::write;
 use std::fs::File;
+use std::hash::Hash;
 use std::path::Path;
 use std::time::{ Duration, Instant };
 use std::{ fs, io, thread, vec };
@@ -171,7 +172,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                     }
                     let lines: Vec<&str> = headers_string.lines().collect();
 
-                    if lines.len() <= 1 {
+                    if lines.len() == 0 {
                         return;
                     }
                     let req_url = Url::parse(lines[0]).unwrap();
@@ -187,6 +188,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                     let content_type = req.content_type.clone().unwrap_or(ContentType::None);
 
                     let has_body = content_type != ContentType::None && req.content_length > 0;
+
                     if req_url.req_type == RequestType::Unknown {
                         if has_body {
                             req.read_only_body(&mut bfreader);
@@ -211,10 +213,8 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                         res.send_code(413);
                         return;
                     }
-                    let mut matching_routes: Vec<
-                        (EndPoint<T>, HashMap<String, String>)
-                    > = Vec::new();
-
+                    let mut matching_routes: Vec<EndPoint<T>> = Vec::new();
+                    let mut params: HashMap<String, String> = HashMap::new();
                     // Check for matching pattern
                     for route in routes_clone {
                         let match_pattern = Url::match_patern(
@@ -222,14 +222,17 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                             &route.path.clone()
                         );
                         if match_pattern.0 == true {
-                            matching_routes.push((route, match_pattern.1));
+                            matching_routes.push(route);
+                            if params.is_empty() {
+                                params = match_pattern.1;
+                            }
                         }
                     }
 
                     if matching_routes.len() > 0 {
-                        let routes: Vec<(EndPoint<T>, HashMap<String, String>)> = matching_routes
+                        let routes: Vec<EndPoint<T>> = matching_routes
                             .into_iter()
-                            .filter(|route| route.0.req_type == req_url.req_type)
+                            .filter(|route| route.req_type == req_url.req_type)
                             .collect();
 
                         if routes.len() == 0 {
@@ -242,12 +245,12 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                         }
                         let route = &routes[0];
 
-                        req.params = route.1.to_owned();
+                        req.params = params;
 
                         if has_body {
                             req.extract_body(&mut bfreader);
                         }
-                        (route.0.handle)(req, res, public_var_clone);
+                        (route.handle)(req, res, public_var_clone);
                         return;
                     }
 
@@ -264,8 +267,15 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                             if path.exists() && path.is_file() {
                                 match File::open(path) {
                                     Ok(file) => {
+                                        let metadata = file.metadata();
+
                                         let bfreader = BufReader::new(file);
-                                        res.pipe_stream(bfreader, None);
+
+                                        let mut size: Option<u64> = None;
+                                        if metadata.is_ok() {
+                                            size = Some(metadata.unwrap().len());
+                                        }
+                                        res.pipe_stream(bfreader, None, size.as_ref());
                                     }
                                     Err(_err) => {
                                         res.send_code(404);
