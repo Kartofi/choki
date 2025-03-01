@@ -145,7 +145,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 let public_var_clone = public_var.clone();
 
                 pool.execute(move || {
-                    let stream: TcpStream = stream.unwrap();
+                    let stream = stream.unwrap();
 
                     let mut bfreader: BufReader<TcpStream> = BufReader::new(
                         stream.try_clone().expect("Failed to create Buffer Reader")
@@ -179,6 +179,9 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
 
                     let mut req = Request::parse(&lines, Some(req_url.query), None);
 
+                    if let Some(socket) = stream.peer_addr().ok() {
+                        req.ip = Some(socket.ip().to_string());
+                    }
                     let content_encoding = req.content_encoding.clone();
                     let mut res = Response::new(
                         stream.try_clone().unwrap(),
@@ -194,13 +197,13 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                             req.read_only_body(&mut bfreader);
                         }
 
-                        res.send_code(405);
+                        res.send_code(ResponseCode::MethodNotAllowed);
                         return;
                     }
                     // Check if body in GET
                     if has_body && req_url.req_type == RequestType::Get {
                         req.read_only_body(&mut bfreader);
-                        res.send_code(400);
+                        res.send_code(ResponseCode::BadRequest);
                         return;
                     }
                     //Check if over content length
@@ -210,7 +213,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                         has_body
                     {
                         req.read_only_body(&mut bfreader);
-                        res.send_code(413);
+                        res.send_code(ResponseCode::ContentTooLarge);
                         return;
                     }
                     let mut matching_routes: Vec<EndPoint<T>> = Vec::new();
@@ -240,7 +243,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                                 req.read_only_body(&mut bfreader);
                             }
 
-                            res.send_code(405); // Method not allowed
+                            res.send_code(ResponseCode::MethodNotAllowed);
                             return;
                         }
                         let route = &routes[0];
@@ -278,11 +281,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                                         res.pipe_stream(bfreader, None, size.as_ref());
                                     }
                                     Err(_err) => {
-                                        res.send_code(404);
+                                        res.send_code(ResponseCode::NotFound);
                                     }
                                 }
                             } else {
-                                res.send_code(404);
+                                res.send_code(ResponseCode::NotFound);
                             }
 
                             sent = true;
@@ -290,7 +293,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                         }
                     }
                     if sent == false {
-                        res.send_code(404);
+                        res.send_code(ResponseCode::NotFound);
                     }
                 });
             }

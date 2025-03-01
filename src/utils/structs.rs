@@ -429,3 +429,29 @@ impl<'a> BodyItem<'a> {
         };
     }
 }
+#[derive(Clone, Copy)]
+pub enum ResponseCode {
+    Continue = 100,
+    Ok = 200,
+    BadRequest = 400,
+    NotFound = 404,
+    MethodNotAllowed = 405,
+    ContentTooLarge = 413,
+}
+impl ResponseCode {
+    pub fn to_desc(&self) -> String {
+        match *self as i32 {
+            100 => "Continue".to_owned(),
+            200 => "OK".to_owned(),
+            400 => "Bad Request".to_owned(),
+            404 => "NOT FOUND".to_owned(),
+            405 => "Method Not Allowed".to_owned(),
+            413 => "Content Too Large".to_owned(),
+
+            _ => "Unknown".to_owned(),
+        }
+    }
+    pub fn to_string(&self) -> String {
+        (*self as i32).to_string()
+    }
+}

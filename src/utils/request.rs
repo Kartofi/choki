@@ -6,6 +6,8 @@ pub struct Request {
     pub query: HashMap<String, String>,
     pub params: HashMap<String, String>,
     pub cookies: Vec<Cookie>,
+    // User data
+    pub ip: Option<String>,
     pub user_agent: Option<String>,
     pub content_encoding: Option<Vec<Encoding>>,
     pub content_length: usize,
@@ -23,6 +25,8 @@ impl Request {
         query: HashMap<String, String>,
         params: HashMap<String, String>,
         cookies: Vec<Cookie>,
+
+        ip: Option<String>,
         user_agent: Option<String>,
         content_encoding: Option<Vec<Encoding>>,
         content_length: usize,
@@ -34,6 +38,8 @@ impl Request {
             query: query,
             params: params,
             cookies: cookies,
+
+            ip: ip,
             user_agent: user_agent,
             content_encoding: content_encoding,
             content_length: content_length,
@@ -55,6 +61,7 @@ impl Request {
             query.unwrap_or_default(),
             params.unwrap_or_default(),
             Vec::new(),
+            None,
             None,
             None,
             0,

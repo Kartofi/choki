@@ -143,6 +143,7 @@ impl Response {
 
         self.headers.push(Header::new("Content-type", content_type.as_str()));
         self.headers.push(Header::new("Content-Length", &compressed_data.len().to_string()));
+
         self.headers.push(Header::new("Transfer-Encoding", "chunked"));
         self.headers.push(Header::new("Connection", "keep-alive"));
 
@@ -290,28 +291,18 @@ impl Response {
     }
 
     //Sends a response code (404, 200...)
-    pub fn send_code(&mut self, code: usize) {
-        fn code_to_str(code: usize) -> String {
-            match code {
-                100 => "Continue".to_owned(),
-                400 => "Bad Request".to_owned(),
-                404 => "NOT FOUND".to_owned(),
-                405 => "Method Not Allowed".to_owned(),
-                413 => "Content Too Large".to_owned(),
-                _ => "OK".to_owned(),
-            }
-        }
+    pub fn send_code(&mut self, code: ResponseCode) {
         let mut response =
-            "HTTP/1.1 ".to_owned() + &code.to_string() + &(" ".to_owned() + &code_to_str(code));
+            "HTTP/1.1 ".to_owned() + &code.to_string() + &(" ".to_owned() + &code.to_desc());
 
         self.set_header(&Header::new("Content-Type", "text/plain"));
-        self.set_header(&Header::new("Content-Length", &code_to_str(code).len().to_string()));
+        self.set_header(&Header::new("Content-Length", &code.to_desc().len().to_string()));
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
         let headers_set_headers = Header::generate_headers(&self.headers);
         response += &headers_set_headers;
         response += &cookies_set_headers;
 
-        response += &("\r\n\r\n".to_owned() + &code_to_str(code));
+        response += &("\r\n\r\n".to_owned() + &code.to_desc());
         match self.stream.write_all(response.as_bytes()) {
             Ok(_res) => {}
             Err(_e) => {}

@@ -3,7 +3,7 @@ use std::io::{ BufReader, Read, Write };
 
 use choki::utils::request::Request;
 use choki::utils::response::Response;
-use choki::utils::structs::ContentType;
+use choki::utils::structs::{ ContentType, ResponseCode };
 use choki::Server;
 
 fn main() {
@@ -20,14 +20,14 @@ fn main() {
         .unwrap();
     server
         .post("/filetest", |req: Request, mut res: Response, public_var: Option<u8>| {
-            res.send_code(200);
+            res.send_code(ResponseCode::Ok);
             let body = req.body();
             println!("{}", body.len());
         })
         .unwrap();
     server
         .get("/filetest", |mut req: Request, mut res: Response, public_var: Option<u8>| {
-            res.send_code(200);
+            res.send_code(ResponseCode::Ok);
         })
         .unwrap();
     server
