@@ -7,12 +7,16 @@ pub enum RequestType {
     Unknown = 0,
     Get = 1,
     Post = 2,
+    Put = 3,
+    Delete = 4,
 }
 impl RequestType {
     pub fn from_string(input: &str) -> RequestType {
         match input.to_lowercase().as_str() {
             "get" => RequestType::Get,
             "post" => RequestType::Post,
+            "put" => RequestType::Put,
+            "delete" => RequestType::Delete,
             _ => RequestType::Unknown,
         }
     }
@@ -78,6 +82,9 @@ pub enum ContentType {
     Gif,
     Webp,
     SvgXml,
+    // Videos
+    Mkv,
+    Mp4,
 
     OctetStream,
 }
@@ -108,6 +115,9 @@ impl ContentType {
             ContentType::Gif => "image/gif",
             ContentType::Webp => "image/webp",
             ContentType::SvgXml => "image/svg+xml",
+            //Video Types
+            ContentType::Mkv => "video/mkv",
+            ContentType::Mp4 => "video/mp4",
         }
     }
 
@@ -135,7 +145,9 @@ impl ContentType {
             "image/gif" => ContentType::Gif,
             "image/webp" => ContentType::Webp,
             "image/svg+xml" => ContentType::SvgXml,
-
+            // Video Types
+            "video/mkv" => ContentType::Mkv,
+            "video/mp4" => ContentType::Mp4,
             _ => ContentType::None,
         }
     }
@@ -433,6 +445,7 @@ impl<'a> BodyItem<'a> {
 pub enum ResponseCode {
     Continue = 100,
     Ok = 200,
+    PartialContent = 206,
     BadRequest = 400,
     NotFound = 404,
     MethodNotAllowed = 405,
@@ -443,6 +456,7 @@ impl ResponseCode {
         match *self as i32 {
             100 => "Continue".to_owned(),
             200 => "OK".to_owned(),
+            206 => "Partial Content".to_owned(),
             400 => "Bad Request".to_owned(),
             404 => "NOT FOUND".to_owned(),
             405 => "Method Not Allowed".to_owned(),

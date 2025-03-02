@@ -111,6 +111,22 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     ) -> Result<(), HttpServerError> {
         self.new_endpoint(path, RequestType::Post, handle)
     }
+    ///Creates a new PUT endpoint
+    pub fn put(
+        &mut self,
+        path: &str,
+        handle: fn(req: Request, res: Response, public_var: Option<T>)
+    ) -> Result<(), HttpServerError> {
+        self.new_endpoint(path, RequestType::Put, handle)
+    }
+    ///Creates a new DELETE endpoint
+    pub fn delete(
+        &mut self,
+        path: &str,
+        handle: fn(req: Request, res: Response, public_var: Option<T>)
+    ) -> Result<(), HttpServerError> {
+        self.new_endpoint(path, RequestType::Delete, handle)
+    }
     ///Starts listening on the given port.
     /// If no provided threads will use cpu threads as value. The higher the value the higher the cpu usage.
     pub fn listen(
@@ -170,6 +186,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
 
                         line = "".to_string();
                     }
+
                     let lines: Vec<&str> = headers_string.lines().collect();
 
                     if lines.len() == 0 {

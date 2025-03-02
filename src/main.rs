@@ -36,7 +36,7 @@ fn main() {
             let size = file.metadata().unwrap().len();
             let mut buf_reader = BufReader::new(file);
 
-            res.send_download_stream(buf_reader, "a.mkv", Some(&size));
+            res.pipe_stream(buf_reader, Some(ContentType::Mkv), Some(&size));
         })
         .unwrap();
     server.new_static("/images", "./tests/static").unwrap();

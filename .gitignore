@@ -1,2 +1,3 @@
 /target
-/tests/static/video.mkv
+/tests/static/*.mkv
+/tests/static/*.mp4

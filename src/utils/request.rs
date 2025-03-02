@@ -5,6 +5,7 @@ use crate::{ utils::structs::*, Encoding };
 pub struct Request {
     pub query: HashMap<String, String>,
     pub params: HashMap<String, String>,
+    pub headers: Vec<Header>,
     pub cookies: Vec<Cookie>,
     // User data
     pub ip: Option<String>,
@@ -24,6 +25,7 @@ impl Request {
     pub fn new(
         query: HashMap<String, String>,
         params: HashMap<String, String>,
+        headers: Vec<Header>,
         cookies: Vec<Cookie>,
 
         ip: Option<String>,
@@ -37,6 +39,7 @@ impl Request {
         return Request {
             query: query,
             params: params,
+            headers: headers,
             cookies: cookies,
 
             ip: ip,
@@ -61,6 +64,7 @@ impl Request {
             query.unwrap_or_default(),
             params.unwrap_or_default(),
             Vec::new(),
+            Vec::new(),
             None,
             None,
             None,
@@ -80,7 +84,7 @@ impl Request {
             } else if lower_line.starts_with("content-length:") {
                 let parts: Vec<&str> = line.split(" ").collect();
 
-                if parts.len() > 0 {
+                if parts.len() > 1 {
                     req.content_length = match parts[1].parse::<usize>() {
                         Ok(res) => res,
                         Err(err) => 0,
@@ -139,6 +143,15 @@ impl Request {
                             )
                         );
                     }
+                }
+            } else {
+                let mut parts: Vec<&str> = line.split(": ").collect();
+
+                if parts.len() > 1 {
+                    let key = parts[0].to_owned();
+                    parts.remove(0);
+                    let value = parts.join(": ");
+                    req.headers.push(Header::new(&key, &value));
                 }
             }
         }
