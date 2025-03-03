@@ -8,6 +8,8 @@ use super::utils::map_compression_level;
 
 pub struct Response {
     stream: TcpStream,
+    status_code: ResponseCode,
+
     cookies: Vec<Cookie>,
     headers: Vec<Header>,
     content_encoding: Vec<Encoding>,
@@ -21,6 +23,7 @@ impl Response {
             headers: Vec::new(),
             content_encoding: content_encoding.unwrap_or_default(),
             use_encoding: true,
+            status_code: ResponseCode::Ok,
         };
     }
     //Deletes a cookie
@@ -47,6 +50,9 @@ impl Response {
                 break;
             }
         }
+    }
+    pub fn set_status(&mut self, status_code: &ResponseCode) {
+        self.status_code = *status_code;
     }
     // Encoding
 
@@ -116,7 +122,10 @@ impl Response {
         let headers_set_headers = Header::generate_headers(&self.headers);
 
         let mut response =
-            "HTTP/1.1 200 OK".to_owned() + &headers_set_headers + &cookies_set_headers;
+            "HTTP/1.1 ".to_owned() +
+            &self.status_code.to_string() +
+            &headers_set_headers +
+            &cookies_set_headers;
         response = response.trim().to_owned();
         response += "\r\n\r\n";
 
@@ -152,7 +161,10 @@ impl Response {
         let headers_set_headers = Header::generate_headers(&self.headers);
 
         let mut response =
-            "HTTP/1.1 200 OK".to_owned() + &headers_set_headers + &cookies_set_headers;
+            "HTTP/1.1 ".to_owned() +
+            &self.status_code.to_string() +
+            &headers_set_headers +
+            &cookies_set_headers;
         response = response.trim().to_owned();
         response += "\r\n\r\n";
 
@@ -218,7 +230,10 @@ impl Response {
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
 
         let mut response =
-            "HTTP/1.1 200 OK".to_owned() + &headers_set_headers + &cookies_set_headers;
+            "HTTP/1.1 ".to_owned() +
+            &self.status_code.to_string() +
+            &headers_set_headers +
+            &cookies_set_headers;
         response = response.trim().to_owned();
         response += "\r\n\r\n";
 
@@ -229,7 +244,12 @@ impl Response {
 
         const CHUNK_SIZE: usize = 8192 * 2; // 16 KB chunk size
         let mut buffer = [0; CHUNK_SIZE];
-
+        let mut total_size: i64 = 0;
+        let stream_size: i64 = if stream_size.is_some() {
+            *stream_size.unwrap() as i64
+        } else {
+            -1
+        };
         loop {
             match stream.read(&mut buffer) {
                 Ok(0) => {
@@ -250,11 +270,15 @@ impl Response {
                         eprintln!("Failed to write chunk terminator: {}", e);
                         return;
                     }
+                    total_size += n as i64;
                 }
                 Err(e) => {
                     eprintln!("Failed to read from stream: {}", e);
                     break;
                 }
+            }
+            if total_size > stream_size && stream_size > 0 {
+                break;
             }
         }
 

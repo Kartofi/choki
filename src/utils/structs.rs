@@ -450,6 +450,7 @@ pub enum ResponseCode {
     NotFound = 404,
     MethodNotAllowed = 405,
     ContentTooLarge = 413,
+    RangeNotSatisfiable = 416,
 }
 impl ResponseCode {
     pub fn to_desc(&self) -> String {
@@ -461,6 +462,7 @@ impl ResponseCode {
             404 => "NOT FOUND".to_owned(),
             405 => "Method Not Allowed".to_owned(),
             413 => "Content Too Large".to_owned(),
+            416 => "Range Not Satisfiable".to_owned(),
 
             _ => "Unknown".to_owned(),
         }
