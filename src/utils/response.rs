@@ -122,8 +122,8 @@ impl Response {
         let headers_set_headers = Header::generate_headers(&self.headers);
 
         let mut response =
-            "HTTP/1.1 ".to_owned() +
-            &self.status_code.to_string() +
+            "HTTP/1.1".to_owned() +
+            &format!(" {} {}", &self.status_code.to_string(), &self.status_code.to_desc()) +
             &headers_set_headers +
             &cookies_set_headers;
         response = response.trim().to_owned();
@@ -161,8 +161,8 @@ impl Response {
         let headers_set_headers = Header::generate_headers(&self.headers);
 
         let mut response =
-            "HTTP/1.1 ".to_owned() +
-            &self.status_code.to_string() +
+            "HTTP/1.1".to_owned() +
+            &format!(" {} {}", &self.status_code.to_string(), &self.status_code.to_desc()) +
             &headers_set_headers +
             &cookies_set_headers;
         response = response.trim().to_owned();
@@ -230,8 +230,8 @@ impl Response {
         let cookies_set_headers = Cookie::generate_set_cookie_headers(&self.cookies);
 
         let mut response =
-            "HTTP/1.1 ".to_owned() +
-            &self.status_code.to_string() +
+            "HTTP/1.1".to_owned() +
+            &format!(" {} {}", &self.status_code.to_string(), &self.status_code.to_desc()) +
             &headers_set_headers +
             &cookies_set_headers;
         response = response.trim().to_owned();
@@ -317,7 +317,7 @@ impl Response {
     //Sends a response code (404, 200...)
     pub fn send_code(&mut self, code: ResponseCode) {
         let mut response =
-            "HTTP/1.1 ".to_owned() + &code.to_string() + &(" ".to_owned() + &code.to_desc());
+            "HTTP/1.1".to_owned() + &format!(" {} {}", &code.to_string(), &code.to_desc());
 
         self.set_header(&Header::new("Content-Type", "text/plain"));
         self.set_header(&Header::new("Content-Length", &code.to_desc().len().to_string()));

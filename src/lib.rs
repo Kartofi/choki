@@ -217,8 +217,12 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                         res.send_code(ResponseCode::MethodNotAllowed);
                         return;
                     }
-                    // Check if body in GET
-                    if has_body && req_url.req_type == RequestType::Get {
+                    // Check if body in GET or HEAD
+                    if
+                        has_body &&
+                        (req_url.req_type == RequestType::Get ||
+                            req_url.req_type == RequestType::Head)
+                    {
                         req.read_only_body(&mut bfreader);
                         res.send_code(ResponseCode::BadRequest);
                         return;
