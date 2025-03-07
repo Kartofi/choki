@@ -33,7 +33,7 @@ fn main() {
 
     server
         .get("/", |req: Request, mut res: Response, public_var: Option<u8>| {
-            let mut file = File::open("./tests/index.html").unwrap();
+            let mut file = File::open("./tests/static/index.html").unwrap();
             let size = file.metadata().unwrap().len();
             let mut buf_reader = BufReader::new(file);
             let mut data: Vec<u8> = Vec::new();

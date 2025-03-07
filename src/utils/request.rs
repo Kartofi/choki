@@ -2,6 +2,8 @@ use std::{ collections::HashMap, io::{ BufReader, Read, Write }, net::TcpStream 
 
 use crate::{ utils::structs::*, Encoding };
 
+use super::utils::{ replace_bytes, split_buffer_inxeses };
+
 pub struct Request {
     pub query: HashMap<String, String>,
     pub params: HashMap<String, String>,
@@ -314,37 +316,4 @@ impl Request {
             }
         }
     }
-}
-
-fn replace_bytes(buffer: &mut Vec<u8>, target: &[u8], replacement: &[u8]) {
-    let mut i = 0;
-    while i <= buffer.len() - target.len() {
-        if &buffer[i..i + target.len()] == target {
-            buffer.splice(i..i + target.len(), replacement.iter().cloned());
-            i += replacement.len();
-        } else {
-            i += 1; // Move to the next byte
-        }
-    }
-}
-
-fn split_buffer_inxeses(buffer: &[u8], delimiter: &[u8]) -> Vec<(usize, usize)> {
-    let mut segments = Vec::new();
-    let mut start = 0;
-
-    let mut i = 0;
-    while i <= buffer.len() - delimiter.len() {
-        if &buffer[i..i + delimiter.len()] == delimiter {
-            // Push the start and end indices of the segment
-            segments.push((start, i));
-            start = i + delimiter.len();
-            i += delimiter.len();
-        } else {
-            i += 1;
-        }
-    }
-    // Push the last segment
-    segments.push((start, buffer.len()));
-
-    segments
 }

@@ -304,9 +304,7 @@ impl Header {
     }
 
     pub fn as_str(&self) -> String {
-        let cookie_str = format!("{}: {}", self.name, self.value);
-
-        cookie_str
+        format!("{}: {}", self.name, self.value)
     }
     pub fn generate_headers(headers: &Vec<Header>) -> String {
         let mut headers_str = "\n".to_string();

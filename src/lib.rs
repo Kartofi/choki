@@ -162,169 +162,171 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
 
                 pool.execute(move || {
                     let stream = stream.unwrap();
-
-                    let mut bfreader: BufReader<TcpStream> = BufReader::new(
-                        stream.try_clone().expect("Failed to create Buffer Reader")
+                    Self::handle_request(
+                        stream,
+                        max_content_length_clone,
+                        routes_clone,
+                        static_routes_clone,
+                        public_var_clone
                     );
-
-                    let mut headers_string: String = "".to_string();
-
-                    let mut line = "".to_owned();
-                    loop {
-                        match bfreader.read_line(&mut line) {
-                            Ok(size) => {
-                                if size <= 2 {
-                                    break;
-                                }
-                            }
-                            Err(e) => {
-                                return;
-                            }
-                        }
-
-                        headers_string.push_str(&line);
-
-                        line = "".to_string();
-                    }
-
-                    let lines: Vec<&str> = headers_string.lines().collect();
-
-                    if lines.len() == 0 {
-                        return;
-                    }
-                    let req_url = Url::parse(lines[0]).unwrap();
-
-                    let mut req = Request::parse(&lines, Some(req_url.query), None);
-
-                    if let Some(socket) = stream.peer_addr().ok() {
-                        req.ip = Some(socket.ip().to_string());
-                    }
-                    let content_encoding = req.content_encoding.clone();
-                    let mut res = Response::new(
-                        stream.try_clone().unwrap(),
-                        content_encoding.clone()
-                    );
-                    // Check if supported req type
-                    let content_type = req.content_type.clone().unwrap_or(ContentType::None);
-
-                    let has_body = content_type != ContentType::None && req.content_length > 0;
-
-                    if req_url.req_type == RequestType::Unknown {
-                        if has_body {
-                            req.read_only_body(&mut bfreader);
-                        }
-
-                        res.send_code(ResponseCode::MethodNotAllowed);
-                        return;
-                    }
-                    // Check if body in GET or HEAD
-                    if
-                        has_body &&
-                        (req_url.req_type == RequestType::Get ||
-                            req_url.req_type == RequestType::Head)
-                    {
-                        req.read_only_body(&mut bfreader);
-                        res.send_code(ResponseCode::BadRequest);
-                        return;
-                    }
-                    //Check if over content length
-                    if
-                        max_content_length_clone > 0 &&
-                        req.content_length > max_content_length_clone &&
-                        has_body
-                    {
-                        req.read_only_body(&mut bfreader);
-                        res.send_code(ResponseCode::ContentTooLarge);
-                        return;
-                    }
-                    let mut matching_routes: Vec<EndPoint<T>> = Vec::new();
-                    let mut params: HashMap<String, String> = HashMap::new();
-                    // Check for matching pattern
-                    for route in routes_clone {
-                        let match_pattern = Url::match_patern(
-                            &req_url.path.clone(),
-                            &route.path.clone()
-                        );
-                        if match_pattern.0 == true {
-                            matching_routes.push(route);
-                            if params.is_empty() {
-                                params = match_pattern.1;
-                            }
-                        }
-                    }
-
-                    if matching_routes.len() > 0 {
-                        let routes: Vec<EndPoint<T>> = matching_routes
-                            .into_iter()
-                            .filter(|route| route.req_type == req_url.req_type)
-                            .collect();
-
-                        if routes.len() == 0 {
-                            if has_body {
-                                req.read_only_body(&mut bfreader);
-                            }
-
-                            res.send_code(ResponseCode::MethodNotAllowed);
-                            return;
-                        }
-                        let route = &routes[0];
-
-                        req.params = params;
-
-                        if has_body {
-                            req.extract_body(&mut bfreader);
-                        }
-                        (route.handle)(req, res, public_var_clone);
-                        return;
-                    }
-
-                    let mut sent = false;
-                    for route in static_routes_clone {
-                        if req_url.path.starts_with(&route.0) {
-                            let parts: Vec<&str> = req_url.path.split(&route.0).collect();
-                            if parts.len() == 0 {
-                                continue;
-                            }
-                            let path_str = route.1 + parts[1];
-                            let path = Path::new(&path_str);
-
-                            if path.exists() && path.is_file() {
-                                match File::open(path) {
-                                    Ok(file) => {
-                                        let metadata = file.metadata();
-
-                                        let bfreader = BufReader::new(file);
-
-                                        let mut size: Option<u64> = None;
-                                        if metadata.is_ok() {
-                                            size = Some(metadata.unwrap().len());
-                                        }
-                                        res.pipe_stream(bfreader, None, size.as_ref());
-                                    }
-                                    Err(_err) => {
-                                        res.send_code(ResponseCode::NotFound);
-                                    }
-                                }
-                            } else {
-                                res.send_code(ResponseCode::NotFound);
-                            }
-
-                            sent = true;
-                            break;
-                        }
-                    }
-                    if sent == false {
-                        res.send_code(ResponseCode::NotFound);
-                    }
                 });
             }
         });
 
         Ok(())
     }
+    fn handle_request(
+        stream: TcpStream,
+        max_content_length: usize,
+        routes: Vec<EndPoint<T>>,
+        static_routes: HashMap<String, String>,
+        public_var: Option<T>
+    ) {
+        let mut bfreader: BufReader<TcpStream> = BufReader::new(
+            stream.try_clone().expect("Failed to create Buffer Reader")
+        );
 
+        let mut headers_string: String = "".to_string();
+
+        let mut line = "".to_owned();
+        loop {
+            match bfreader.read_line(&mut line) {
+                Ok(size) => {
+                    if size <= 2 {
+                        break;
+                    }
+                }
+                Err(e) => {
+                    return;
+                }
+            }
+
+            headers_string.push_str(&line);
+
+            line = "".to_string();
+        }
+
+        let lines: Vec<&str> = headers_string.lines().collect();
+
+        if lines.len() == 0 {
+            return;
+        }
+        let req_url = Url::parse(lines[0]).unwrap();
+
+        let mut req = Request::parse(&lines, Some(req_url.query), None);
+
+        if let Some(socket) = stream.peer_addr().ok() {
+            req.ip = Some(socket.ip().to_string());
+        }
+        let content_encoding = req.content_encoding.clone();
+        let mut res = Response::new(stream.try_clone().unwrap(), content_encoding.clone());
+        // Check if supported req type
+        let content_type = req.content_type.clone().unwrap_or(ContentType::None);
+
+        let has_body = content_type != ContentType::None && req.content_length > 0;
+
+        if req_url.req_type == RequestType::Unknown {
+            if has_body {
+                req.read_only_body(&mut bfreader);
+            }
+
+            res.send_code(ResponseCode::MethodNotAllowed);
+            return;
+        }
+        // Check if body in GET or HEAD
+        if
+            has_body &&
+            (req_url.req_type == RequestType::Get || req_url.req_type == RequestType::Head)
+        {
+            req.read_only_body(&mut bfreader);
+            res.send_code(ResponseCode::BadRequest);
+            return;
+        }
+        //Check if over content length
+        if max_content_length > 0 && req.content_length > max_content_length && has_body {
+            req.read_only_body(&mut bfreader);
+            res.send_code(ResponseCode::ContentTooLarge);
+            return;
+        }
+        let mut matching_routes: Vec<EndPoint<T>> = Vec::new();
+        let mut params: HashMap<String, String> = HashMap::new();
+        // Check for matching pattern
+        for route in routes {
+            let match_pattern = Url::match_patern(&req_url.path.clone(), &route.path.clone());
+            if match_pattern.0 == true {
+                matching_routes.push(route);
+                if params.is_empty() {
+                    params = match_pattern.1;
+                }
+            }
+        }
+
+        if matching_routes.len() > 0 {
+            let routes: Vec<EndPoint<T>> = matching_routes
+                .into_iter()
+                .filter(|route| route.req_type == req_url.req_type)
+                .collect();
+
+            if routes.len() == 0 {
+                if has_body {
+                    req.read_only_body(&mut bfreader);
+                }
+
+                res.send_code(ResponseCode::MethodNotAllowed);
+                return;
+            }
+            let route = &routes[0];
+
+            req.params = params;
+
+            if has_body {
+                req.extract_body(&mut bfreader);
+            }
+
+            (route.handle)(req, res, public_var);
+            return;
+        }
+
+        let mut sent = false;
+        for route in static_routes {
+            if req_url.path.starts_with(&route.0) {
+                let parts: Vec<&str> = req_url.path.split(&route.0).collect();
+                if parts.len() == 0 {
+                    continue;
+                }
+                let path_str = route.1 + parts[1];
+                let path = Path::new(&path_str);
+
+                if path.exists() && path.is_file() {
+                    match File::open(path) {
+                        Ok(file) => {
+                            let metadata = file.metadata();
+
+                            let bfreader = BufReader::new(file);
+
+                            let mut size: Option<u64> = None;
+                            if metadata.is_ok() {
+                                size = Some(metadata.unwrap().len());
+                            }
+                            res.pipe_stream(bfreader, None, size.as_ref());
+                        }
+                        Err(_err) => {
+                            res.send_code(ResponseCode::NotFound);
+                        }
+                    }
+                } else {
+                    res.send_code(ResponseCode::NotFound);
+                }
+
+                sent = true;
+                break;
+            }
+        }
+        if sent == false {
+            res.send_code(ResponseCode::NotFound);
+        }
+    }
     ///Locks the thread from stoping (put it in the end of the main file to keep the server running);
-
     pub fn lock() {
         let dur = Duration::from_secs(5);
         loop {

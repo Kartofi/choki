@@ -151,7 +151,6 @@ impl Response {
         let compressed_data = self.prepare_data(data);
 
         self.headers.push(Header::new("Content-type", content_type.as_str()));
-        self.headers.push(Header::new("Content-Length", &compressed_data.len().to_string()));
 
         self.headers.push(Header::new("Transfer-Encoding", "chunked"));
         self.headers.push(Header::new("Connection", "keep-alive"));
