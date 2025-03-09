@@ -32,7 +32,6 @@ pub fn split_buffer_inxeses(buffer: &[u8], delimiter: &[u8]) -> Vec<(usize, usiz
     let mut i = 0;
     while i <= buffer.len() - delimiter.len() {
         if &buffer[i..i + delimiter.len()] == delimiter {
-            // Push the start and end indices of the segment
             segments.push((start, i));
             start = i + delimiter.len();
             i += delimiter.len();

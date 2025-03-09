@@ -13,11 +13,11 @@ use threadpool::ThreadPool;
 
 extern crate num_cpus;
 
-pub mod utils;
+pub mod src;
 
-use utils::request::Request;
-use utils::response::Response;
-use utils::*;
+use src::request::Request;
+use src::response::Response;
+use src::*;
 
 pub struct Server<T: Clone + std::marker::Send + 'static> {
     active: bool,
@@ -129,11 +129,13 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     }
     ///Starts listening on the given port.
     /// If no provided threads will use cpu threads as value. The higher the value the higher the cpu usage.
+    /// The on_complete function is executed after the listener has started.
     pub fn listen(
         &mut self,
         port: u32,
         address: Option<&str>,
-        threads: Option<usize>
+        threads: Option<usize>,
+        on_complete: fn()
     ) -> Result<(), HttpServerError> {
         if port > 65_535 {
             return Err(HttpServerError::new("Invalid port: port must be 0-65,535".to_string()));
@@ -172,6 +174,8 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 });
             }
         });
+
+        on_complete();
 
         Ok(())
     }

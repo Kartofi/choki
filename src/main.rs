@@ -1,9 +1,9 @@
 use std::fs::{ self, File };
 use std::io::{ BufReader, Read, Seek, SeekFrom, Write };
 
-use choki::utils::request::Request;
-use choki::utils::response::Response;
-use choki::utils::structs::{ ContentType, Header, ResponseCode };
+use choki::src::request::Request;
+use choki::src::response::Response;
+use choki::src::structs::{ ContentType, Header, ResponseCode };
 use choki::Server;
 
 fn main() {
@@ -43,6 +43,6 @@ fn main() {
         .unwrap();
     server.new_static("/images", "./tests/static").unwrap();
     server.new_static("/images2", "./tests/static").unwrap();
-    server.listen(3000, None, None).unwrap();
+    server.listen(3000, None, None, || { println!("Server is listening on port 3000") }).unwrap();
     Server::<i32>::lock();
 }

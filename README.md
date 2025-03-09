@@ -6,6 +6,8 @@ Heavily inspired by express.js
 
 <a href="https://expressjs.com/">https://expressjs.com/
 
+# OLD DOCS DONT FOLLOW THEM🚫 Need to rewrite them
+
 # 📂・Installation
 
 ```powershell

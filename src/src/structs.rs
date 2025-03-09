@@ -1,6 +1,6 @@
 use std::{ collections::HashMap, io::BufRead };
 
-use super::{ request::Request, response::Response, utils::count_char_occurrences };
+use super::{ request::Request, response::Response, utils::utils::count_char_occurrences };
 
 #[derive(Clone, PartialEq)]
 pub enum RequestType {
@@ -260,6 +260,7 @@ pub struct Cookie {
     pub expires: String,
 }
 impl Cookie {
+    /// Creates a simple cookie with name and value
     pub fn new_simple(name: String, value: String) -> Cookie {
         return Cookie {
             name: name,
@@ -268,7 +269,7 @@ impl Cookie {
             expires: "".to_string(),
         };
     }
-
+    /// Converts cookie into str for writing in response
     pub fn as_str(&self) -> String {
         let mut cookie_str = format!("{}={}", self.name, self.value);
 
@@ -282,6 +283,7 @@ impl Cookie {
 
         cookie_str
     }
+    /// generates set-cookie headers
     pub fn generate_set_cookie_headers(cookies: &Vec<Cookie>) -> String {
         cookies
             .iter()
@@ -296,16 +298,18 @@ pub struct Header {
     pub value: String,
 }
 impl Header {
+    /// Creates a header with a name and value
     pub fn new(name: &str, value: &str) -> Header {
         return Header {
             name: name.to_owned(),
             value: value.to_owned(),
         };
     }
-
+    /// Converts the header int ostring "{name}: {value}"
     pub fn as_str(&self) -> String {
         format!("{}: {}", self.name, self.value)
     }
+    /// Generates headers into string from a list/vec
     pub fn generate_headers(headers: &Vec<Header>) -> String {
         let mut headers_str = "\n".to_string();
         if headers.len() == 0 {
@@ -345,6 +349,7 @@ impl<T: Clone + std::marker::Send + 'static> EndPoint<T> {
         };
     }
 }
+/// Info for bodyitem: name,content type, file name if its a file, and value if urlencoded
 #[derive(Clone)]
 pub struct BodyItemInfo {
     pub content_type: ContentType,
@@ -423,7 +428,7 @@ impl BodyItemInfo {
         return body_item;
     }
 }
-
+/// Holds the data and a pointer to the info
 pub struct BodyItem<'a> {
     pub info: &'a BodyItemInfo,
     pub data: &'a [u8],
@@ -455,8 +460,26 @@ pub enum ResponseCode {
     MethodNotAllowed = 405,
     ContentTooLarge = 413,
     RangeNotSatisfiable = 416,
+
+    Unknown = 0,
 }
 impl ResponseCode {
+    /// Converts i32 into ResponseCode
+    pub fn from_i32(code: &i32) -> ResponseCode {
+        match code {
+            100 => ResponseCode::Continue,
+            200 => ResponseCode::Ok,
+            206 => ResponseCode::PartialContent,
+            400 => ResponseCode::BadRequest,
+            404 => ResponseCode::NotFound,
+            405 => ResponseCode::MethodNotAllowed,
+            413 => ResponseCode::ContentTooLarge,
+            416 => ResponseCode::RangeNotSatisfiable,
+
+            _ => ResponseCode::Unknown,
+        }
+    }
+    /// Returns the description of response code. For example: "Range Not Satisfiable"
     pub fn to_desc(&self) -> String {
         match *self as i32 {
             100 => "Continue".to_owned(),
@@ -471,7 +494,12 @@ impl ResponseCode {
             _ => "Unknown".to_owned(),
         }
     }
+
     pub fn to_string(&self) -> String {
         (*self as i32).to_string()
+    }
+
+    pub fn format_string(&self) -> String {
+        format!(" {} {}", &self.to_string(), &self.to_desc())
     }
 }
