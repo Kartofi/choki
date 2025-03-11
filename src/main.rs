@@ -21,7 +21,7 @@ fn main() {
     server
         .post("/filetest", |req: Request, mut res: Response, public_var: Option<u8>| {
             res.send_code(ResponseCode::Ok);
-            let body = req.body();
+            let body: Vec<choki::src::structs::BodyItem<'_>> = req.body();
             println!("{}", body.len());
         })
         .unwrap();
