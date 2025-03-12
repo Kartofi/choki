@@ -1,3 +1,3 @@
 pub fn eprint(input: &str) {
-    eprint!("[ERROR] {}", input);
+    eprintln!("[ERROR] {}", input);
 }

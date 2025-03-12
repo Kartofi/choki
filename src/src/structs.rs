@@ -505,6 +505,6 @@ impl ResponseCode {
     }
 
     pub fn format_string(&self) -> String {
-        format!(" {} {}", &self.to_string(), &self.to_desc())
+        format!("{} {}", &self.to_string(), &self.to_desc())
     }
 }

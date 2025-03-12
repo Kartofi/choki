@@ -14,8 +14,8 @@ fn main() {
         })
         .unwrap();
     server
-        .post("/", |req: Request, mut res: Response, public_var: Option<u8>| {
-            res.send_string("ddd");
+        .get("/test", |req: Request, mut res: Response, public_var: Option<u8>| {
+            res.send_code(ResponseCode::Ok);
         })
         .unwrap();
     server
