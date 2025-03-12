@@ -416,7 +416,12 @@ impl BodyItemInfo {
             return BodyItemInfo::default();
         }
         if lines.len() == 2 {
-            body_item.file_name = Some(parts[2].to_string());
+            let file_name = parts[2].to_string();
+            if file_name.len() > 11 {
+                body_item.file_name = Some(
+                    parts[2].to_string()[10..file_name.len() - 1].to_string()
+                );
+            }
         }
         let name = parts[1].replace("name=\"", "");
         if name.len() < 1 {
