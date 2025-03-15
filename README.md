@@ -1,6 +1,8 @@
 A simple http server library built from scratch.
 <br>
 Using only the <a href="https://crates.io/crates/threadpool">threadpool</a>, <a href="https://crates.io/crates/num_cpus">num_cpus</a> and <a href="https://crates.io/crates/flate2">flate2</a>. (and ofc the built in std)
+
+Using tikv-jemallocator allocator because the default one is making it eat ram.
 <br>
 
 <b>Heavily inspired by <a href="https://expressjs.com/">ExpressJs</a></b>
