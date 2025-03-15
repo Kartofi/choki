@@ -16,3 +16,5 @@ exclude = [
 threadpool = "1.8.1"
 num_cpus = "1.0"
 flate2 = "1.0"
+[target.'cfg(not(target_env = "msvc"))'.dependencies]
+tikv-jemallocator = "0.6"

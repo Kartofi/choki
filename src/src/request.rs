@@ -2,7 +2,7 @@ use std::{ collections::HashMap, io::{ BufReader, Read, Write }, net::TcpStream 
 
 use crate::{ src::structs::*, Encoding };
 
-use super::utils::utils::{replace_bytes, split_buffer_inxeses};
+use super::utils::utils::{ replace_bytes, split_buffer_inxeses };
 
 pub struct Request {
     pub query: HashMap<String, String>,

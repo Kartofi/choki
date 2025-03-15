@@ -22,7 +22,6 @@ fn main() {
         .post("/filetest", |req: Request, mut res: Response, public_var: Option<u8>| {
             res.send_code(ResponseCode::Ok);
             let body: Vec<choki::src::structs::BodyItem<'_>> = req.body();
-            println!("{}", body.len());
         })
         .unwrap();
     server
@@ -41,8 +40,7 @@ fn main() {
             res.send_bytes_chunked(&data, Some(ContentType::Html));
         })
         .unwrap();
-    server.new_static("/images", "./tests/static").unwrap();
-    server.new_static("/images2", "./tests/static").unwrap();
+
     server.listen(3000, None, None, || { println!("Server is listening on port 3000") }).unwrap();
     Server::<i32>::lock();
 }

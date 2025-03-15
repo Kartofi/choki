@@ -1,3 +1,10 @@
+#[cfg(not(target_env = "msvc"))]
+use tikv_jemallocator::Jemalloc;
+
+#[cfg(not(target_env = "msvc"))]
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
+
 use std::collections::HashMap;
 use std::fmt::write;
 use std::fs::File;
@@ -288,6 +295,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             }
 
             (route.handle)(req, res, public_var);
+
             return;
         }
 
