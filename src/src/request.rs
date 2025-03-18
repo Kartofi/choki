@@ -1,5 +1,7 @@
 use std::{ collections::HashMap, io::{ BufReader, Read, Write }, net::TcpStream };
 
+use bumpalo::Bump;
+
 use crate::{ src::structs::*, Encoding };
 
 use super::utils::utils::{ replace_bytes, split_buffer_inxeses };
@@ -188,10 +190,12 @@ impl Request {
         }
         return res;
     }
-    pub fn extract_body(&mut self, bfreader: &mut BufReader<TcpStream>) {
+    pub fn extract_body(&mut self, bfreader: &mut BufReader<TcpStream>, bump: Bump) {
         let mut total_size = 0;
 
         let mut buffer: [u8; 4096] = [0; 4096];
+
+        self.buffer = bump.alloc(Vec::new()).to_vec();
 
         loop {
             match bfreader.read(&mut buffer) {

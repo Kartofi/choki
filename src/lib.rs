@@ -1,9 +1,4 @@
-#[cfg(not(target_env = "msvc"))]
-use tikv_jemallocator::Jemalloc;
-
-#[cfg(not(target_env = "msvc"))]
-#[global_allocator]
-static GLOBAL: Jemalloc = Jemalloc;
+use bumpalo::Bump;
 
 use std::collections::HashMap;
 use std::fmt::write;
@@ -193,6 +188,8 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         static_routes: HashMap<String, String>,
         public_var: Option<T>
     ) {
+        let bump = Bump::new(); // Allocator
+
         let mut bfreader: BufReader<TcpStream> = BufReader::new(
             stream.try_clone().expect("Failed to create Buffer Reader")
         );
@@ -291,7 +288,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             req.params = params;
 
             if has_body {
-                req.extract_body(&mut bfreader);
+                req.extract_body(&mut bfreader, bump);
             }
 
             (route.handle)(req, res, public_var);
