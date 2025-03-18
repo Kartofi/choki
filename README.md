@@ -2,7 +2,7 @@ A simple http server library built from scratch.
 <br>
 Using only the <a href="https://crates.io/crates/threadpool">threadpool</a>, <a href="https://crates.io/crates/num_cpus">num_cpus</a> and <a href="https://crates.io/crates/flate2">flate2</a>. (and ofc the built in std)
 
-Using tikv-jemallocator allocator because the default one is making it eat ram.
+Using bumpalo allocator for the body buffer.
 <br>
 
 <b>Heavily inspired by <a href="https://expressjs.com/">ExpressJs</a></b>
@@ -16,7 +16,7 @@ cargo add choki
 or add it in your Cargo.toml
 
 ```powershell
-choki = "1.1.3"
+choki = "1.1.4"
 ```
 
 # 💡・Features
