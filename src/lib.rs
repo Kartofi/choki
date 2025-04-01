@@ -28,6 +28,8 @@ pub struct Server<T: Clone + std::marker::Send + 'static> {
     pub static_endpoints: HashMap<String, String>,
 
     pub public_var: Option<T>,
+
+    middleware: Option<fn(req: &Request, res: &Response, public_var: &Option<T>) -> bool>,
 }
 
 impl<T: Clone + std::marker::Send + 'static> Server<T> {
@@ -41,7 +43,15 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             endpoints: Vec::new(),
             static_endpoints: HashMap::new(),
             public_var: public_var,
+            middleware: None,
         };
+    }
+    ///Add function as middleware (just before sending response). The response is a bool. If it's true, the request will continue; if it's false, it will stop.
+    pub fn use_middleware(
+        &mut self,
+        handle: fn(req: &Request, res: &Response, public_var: &Option<T>) -> bool
+    ) {
+        self.middleware = Some(handle);
     }
     ///Creates a new static url
     /// For example a folder named "images" on path /images every image in that folder will be exposed like "/images/example.png"
@@ -149,6 +159,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         let pool: ThreadPool = ThreadPool::new(threads.unwrap_or(num_cpus::get()));
         let routes = self.endpoints.clone();
         let static_routes = self.static_endpoints.clone();
+        let middleware = self.middleware.clone();
 
         let max_content_length = self.max_content_length.clone();
         let public_var = self.public_var.clone();
@@ -171,6 +182,8 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                         max_content_length_clone,
                         routes_clone,
                         static_routes_clone,
+                        middleware,
+
                         public_var_clone
                     );
                 });
@@ -186,6 +199,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         max_content_length: usize,
         routes: Vec<EndPoint<T>>,
         static_routes: HashMap<String, String>,
+        middleware: Option<fn(&request::Request, &Response, &Option<T>) -> bool>,
         public_var: Option<T>
     ) {
         let bump = Bump::new(); // Allocator
@@ -256,6 +270,14 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             res.send_code(ResponseCode::ContentTooLarge);
             return;
         }
+        // Middleware
+        if middleware.is_some() {
+            let result = middleware.unwrap()(&req, &res, &public_var);
+            if result == false {
+                return;
+            }
+        }
+        //
         let mut matching_routes: Vec<EndPoint<T>> = Vec::new();
         let mut params: HashMap<String, String> = HashMap::new();
         // Check for matching pattern
