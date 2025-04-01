@@ -29,7 +29,9 @@ pub struct Server<T: Clone + std::marker::Send + 'static> {
 
     pub public_var: Option<T>,
 
-    middleware: Option<fn(req: &Request, res: &Response, public_var: &Option<T>) -> bool>,
+    middleware: Option<
+        fn(url: &Url, req: &Request, res: &Response, public_var: &Option<T>) -> bool
+    >,
 }
 
 impl<T: Clone + std::marker::Send + 'static> Server<T> {
@@ -49,7 +51,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     ///Add function as middleware (just before sending response). The response is a bool. If it's true, the request will continue; if it's false, it will stop.
     pub fn use_middleware(
         &mut self,
-        handle: fn(req: &Request, res: &Response, public_var: &Option<T>) -> bool
+        handle: fn(url: &Url, req: &Request, res: &Response, public_var: &Option<T>) -> bool
     ) {
         self.middleware = Some(handle);
     }
@@ -199,7 +201,9 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         max_content_length: usize,
         routes: Vec<EndPoint<T>>,
         static_routes: HashMap<String, String>,
-        middleware: Option<fn(&request::Request, &Response, &Option<T>) -> bool>,
+        middleware: Option<
+            fn(url: &Url, req: &Request, res: &Response, public_var: &Option<T>) -> bool
+        >,
         public_var: Option<T>
     ) {
         let bump = Bump::new(); // Allocator
@@ -272,7 +276,12 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         }
         // Middleware
         if middleware.is_some() {
-            let result = middleware.unwrap()(&req, &res, &public_var);
+            let result = middleware.unwrap()(
+                &(Url { path: req_url.path, req_type: req_url.req_type, query: HashMap::new() }),
+                &req,
+                &res,
+                &public_var
+            );
             if result == false {
                 return;
             }
