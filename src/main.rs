@@ -8,7 +8,7 @@ use choki::Server;
 
 fn main() {
     let mut server: Server<u8> = Server::new(None, None);
-    server.use_middleware(|url: &Url, req: &Request, mut res: &Response, public_var: &Option<u8>| {
+    server.use_middleware(|url: &Url, req: &Request, res: &mut Response, public_var: &Option<u8>| {
         println!("Ip {}", req.ip.clone().unwrap_or_default());
         return true;
     });

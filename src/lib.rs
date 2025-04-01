@@ -30,7 +30,7 @@ pub struct Server<T: Clone + std::marker::Send + 'static> {
     pub public_var: Option<T>,
 
     middleware: Option<
-        fn(url: &Url, req: &Request, res: &Response, public_var: &Option<T>) -> bool
+        fn(url: &Url, req: &Request, res: &mut Response, public_var: &Option<T>) -> bool
     >,
 }
 
@@ -51,7 +51,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     ///Add function as middleware (just before sending response). The response is a bool. If it's true, the request will continue; if it's false, it will stop.
     pub fn use_middleware(
         &mut self,
-        handle: fn(url: &Url, req: &Request, res: &Response, public_var: &Option<T>) -> bool
+        handle: fn(url: &Url, req: &Request, res: &mut Response, public_var: &Option<T>) -> bool
     ) {
         self.middleware = Some(handle);
     }
@@ -202,7 +202,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         routes: Vec<EndPoint<T>>,
         static_routes: HashMap<String, String>,
         middleware: Option<
-            fn(url: &Url, req: &Request, res: &Response, public_var: &Option<T>) -> bool
+            fn(url: &Url, req: &Request, res: &mut Response, public_var: &Option<T>) -> bool
         >,
         public_var: Option<T>
     ) {
@@ -283,7 +283,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                     query: HashMap::new(),
                 }),
                 &req,
-                &res,
+                &mut res,
                 &public_var
             );
             if result == false {
