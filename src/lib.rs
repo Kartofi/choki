@@ -277,7 +277,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         // Middleware
         if middleware.is_some() {
             let result = middleware.unwrap()(
-                &(Url { path: req_url.path, req_type: req_url.req_type, query: HashMap::new() }),
+                &(Url {
+                    path: req_url.path.clone(),
+                    req_type: req_url.req_type.clone(),
+                    query: HashMap::new(),
+                }),
                 &req,
                 &res,
                 &public_var

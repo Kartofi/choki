@@ -16,7 +16,7 @@ cargo add choki
 or add it in your Cargo.toml
 
 ```powershell
-choki = "1.1.4"
+choki = "1.1.5"
 ```
 
 # 💡・Features
@@ -94,6 +94,15 @@ Also queries and body are supported.
 `req.body` is a `Vec<BodyItem>` which are the items in the body (if multipart-form and etc. (you can check it `req.content_type`));
 
 `req.query` are the queries (/search?name=123 the thing after ?)
+
+Middleware is also supported.
+
+```rust
+   server.use_middleware(|url: &Url, req: &Request, mut res: &Response, public_var: &Option<u8>| {
+        println!("Ip {}", req.ip.clone().unwrap_or_default());
+        return true;
+    });
+```
 
 ## Response
 
