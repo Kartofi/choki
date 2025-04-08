@@ -3,11 +3,20 @@ use std::io::{ BufReader, Read, Seek, SeekFrom, Write };
 
 use choki::src::request::Request;
 use choki::src::response::Response;
-use choki::src::structs::{ ContentType, Header, ResponseCode, Url };
+use choki::src::structs::{ ContentType, Header, RequestType, ResponseCode, Url };
 use choki::Server;
 
 fn main() {
     let mut server: Server<u8> = Server::new(None, None);
+    server
+        .on(
+            RequestType::Other("Custom".to_string()),
+            "/",
+            |req: Request, mut res: Response, public_var: Option<u8>| {
+                res.send_string("HI custom one");
+            }
+        )
+        .unwrap();
     server.use_middleware(|url: &Url, req: &Request, res: &mut Response, public_var: &Option<u8>| {
         println!("Ip {}", req.ip.clone().unwrap_or_default());
         return true;

@@ -4,14 +4,15 @@ use super::{ request::Request, response::Response, utils::utils::count_char_occu
 
 #[derive(Clone, PartialEq)]
 pub enum RequestType {
-    Unknown = 0,
-    Get = 1,
-    Post = 2,
-    Put = 3,
-    Delete = 4,
-    Head = 5,
-    Options = 6,
-    Patch = 7,
+    Unknown,
+    Get,
+    Post,
+    Put,
+    Delete,
+    Head,
+    Options,
+    Patch,
+    Other(String),
 }
 impl RequestType {
     pub fn from_string(input: &str) -> RequestType {
@@ -23,7 +24,8 @@ impl RequestType {
             "head" => RequestType::Head,
             "options" => RequestType::Options,
             "patch" => RequestType::Patch,
-            _ => RequestType::Unknown,
+
+            input => RequestType::Other(input.to_string()),
         }
     }
 }
@@ -76,10 +78,6 @@ pub enum ContentType {
 
     // Application Types
     Json,
-    XmlApp,
-    Pdf,
-    JavascriptApp,
-    Zip,
     MultipartForm,
     UrlEncoded,
     // Image Types
@@ -93,6 +91,7 @@ pub enum ContentType {
     Mp4,
 
     OctetStream,
+    Other(String),
 }
 
 impl ContentType {
@@ -108,10 +107,6 @@ impl ContentType {
 
             // Application Types
             ContentType::Json => "application/json",
-            ContentType::XmlApp => "application/xml",
-            ContentType::Pdf => "application/pdf",
-            ContentType::JavascriptApp => "application/javascript",
-            ContentType::Zip => "application/zip",
             ContentType::OctetStream => "application/octet-stream",
             ContentType::MultipartForm => "multipart/form-data",
             ContentType::UrlEncoded => "application/x-www-form-urlencoded",
@@ -124,6 +119,8 @@ impl ContentType {
             //Video Types
             ContentType::Mkv => "video/mkv",
             ContentType::Mp4 => "video/mp4",
+
+            ContentType::Other(content_type) => content_type,
         }
     }
 
@@ -138,10 +135,6 @@ impl ContentType {
 
             // Application Types
             "application/json" => ContentType::Json,
-            "application/xml" => ContentType::XmlApp,
-            "application/pdf" => ContentType::Pdf,
-            "application/javascript" => ContentType::JavascriptApp,
-            "application/zip" => ContentType::Zip,
             "application/octet-stream" => ContentType::OctetStream,
             "multipart/form-data" => ContentType::MultipartForm,
             "application/x-www-form-urlencoded" => ContentType::UrlEncoded,
@@ -154,7 +147,8 @@ impl ContentType {
             // Video Types
             "video/mkv" => ContentType::Mkv,
             "video/mp4" => ContentType::Mp4,
-            _ => ContentType::None,
+
+            input => ContentType::Other(input.to_string()),
         }
     }
 }
@@ -192,23 +186,26 @@ impl Url {
         let mut query: HashMap<String, String> = HashMap::new();
 
         if path.contains("?") == true {
-            let parts: Vec<&str> = path.split("?").collect();
-            path = parts[0];
+            let parts: (&str, &str) = path.split_once("?").unwrap();
 
-            if parts[1].len() > 2 && parts[1].contains("=") == true {
-                if parts[1].contains("&") {
-                    let queries_string: Vec<&str> = parts[1].split("&").collect();
+            path = parts.0;
+
+            if parts.1.len() > 2 && parts.1.contains("=") == true {
+                if parts.1.contains("&") {
+                    let queries_string: Vec<&str> = parts.1.split("&").collect();
                     for query_string in queries_string {
-                        let query_string: Vec<&str> = query_string.split("=").collect();
-                        if query_string.len() == 2 {
-                            query.insert(query_string[0].to_string(), query_string[1].to_string());
+                        let query_string: Option<(&str, &str)> = query_string.split_once("=");
+                        if query_string.is_some() {
+                            let query_string = query_string.unwrap();
+                            query.insert(query_string.0.to_string(), query_string.1.to_string());
                         }
                     }
                 } else {
-                    let query_string: Vec<&str> = parts[1].split("=").collect();
+                    let query_string: Option<(&str, &str)> = parts.1.split_once("=");
 
-                    if query_string.len() == 2 {
-                        query.insert(query_string[0].to_string(), query_string[1].to_string());
+                    if query_string.is_some() {
+                        let query_string = query_string.unwrap();
+                        query.insert(query_string.0.to_string(), query_string.1.to_string());
                     }
                 }
             }

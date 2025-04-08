@@ -220,11 +220,13 @@ impl Request {
             let parts: Vec<&str> = string_buffer.split("&").collect();
 
             for part in parts {
-                let key_value: Vec<&str> = part.split("=").collect();
-                if key_value.len() == 2 {
+                let key_value: Option<(&str, &str)> = part.split_once("=");
+                if key_value.is_some() {
+                    let key_value = key_value.unwrap();
+
                     let body_item = BodyItemInfo::new_url(
-                        key_value[0].to_owned(),
-                        key_value[1].to_owned()
+                        key_value.0.to_owned(),
+                        key_value.1.to_owned()
                     );
 
                     self.body.push(body_item);

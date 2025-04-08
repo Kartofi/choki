@@ -16,7 +16,7 @@ cargo add choki
 or add it in your Cargo.toml
 
 ```powershell
-choki = "1.1.6"
+choki = "1.1.7"
 ```
 
 # 💡・Features
@@ -70,6 +70,18 @@ server.put("/put".to_string(), |req: Request, mut res: Response, public_var: Opt
 server.delete("/delete".to_string(), |req: Request, mut res: Response, public_var: Option<u8>| {
     res.send_string("Boom!");
 }).unwrap();
+```
+
+## Create any endpoint
+
+```rust
+server.on(
+    RequestType::Other("Custom".to_string()),
+    "/",
+    |req: Request, mut res: Response, public_var: Option<u8>| {
+        res.send_string("HI custom one");
+    }
+).unwrap();
 ```
 
 ## Create `STATIC` endpoint

@@ -1,10 +1,11 @@
 use bumpalo::Bump;
 
+use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::fmt::write;
 use std::fs::File;
 use std::hash::Hash;
-use std::path::Path;
+use std::path::{ self, Path };
 use std::time::{ Duration, Instant };
 use std::{ fs, io, thread, vec };
 use std::{ io::Write, net::* };
@@ -141,6 +142,16 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     ) -> Result<(), HttpServerError> {
         self.new_endpoint(path, RequestType::Delete, handle)
     }
+
+    ///Universal endpoint creator
+    pub fn on(
+        &mut self,
+        req_type: RequestType,
+        path: &str,
+        handle: fn(req: Request, res: Response, public_var: Option<T>)
+    ) -> Result<(), HttpServerError> {
+        self.new_endpoint(path, req_type, handle)
+    }
     ///Starts listening on the given port.
     /// If no provided threads will use cpu threads as value. The higher the value the higher the cpu usage.
     /// The on_complete function is executed after the listener has started.
@@ -158,8 +169,9 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             return Err(HttpServerError::new("The server is already running!".to_string()));
         }
         self.active = true;
+
         let pool: ThreadPool = ThreadPool::new(threads.unwrap_or(num_cpus::get()));
-        let routes = self.endpoints.clone();
+        let mut routes = self.endpoints.clone();
         let static_routes = self.static_endpoints.clone();
         let middleware = self.middleware.clone();
 
@@ -167,6 +179,8 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         let public_var = self.public_var.clone();
 
         let address = address.unwrap_or("0.0.0.0").to_owned();
+
+        order_routes(&mut routes); // Order them so the first one are without params
 
         thread::spawn(move || {
             let tcp: TcpListener = TcpListener::bind(format!("{}:{}", address, port)).unwrap();
@@ -377,4 +391,24 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             std::thread::sleep(dur);
         }
     }
+}
+
+fn order_routes<T: Clone + Send + 'static>(routes: &mut Vec<EndPoint<T>>) {
+    routes.sort_by(|a, b| {
+        let path_a = &a.path;
+        let path_b = &b.path;
+        if path_a.contains("[") && path_a.contains("]") && !path_b.contains("[") {
+            return Ordering::Greater;
+        }
+        if path_b.contains("[") && path_b.contains("]") && !path_a.contains("[") {
+            return Ordering::Less;
+        }
+        if path_a.len() > path_b.len() {
+            return Ordering::Greater;
+        }
+        if path_a.len() < path_b.len() {
+            return Ordering::Less;
+        }
+        return Ordering::Equal;
+    });
 }
