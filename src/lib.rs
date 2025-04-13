@@ -1,4 +1,5 @@
 use bumpalo::Bump;
+use src::utils::logger;
 
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -33,6 +34,7 @@ pub struct Server<T: Clone + std::marker::Send + 'static> {
     middleware: Option<
         fn(url: &Url, req: &Request, res: &mut Response, public_var: &Option<T>) -> bool
     >,
+    logger: Option<fn(input: &HttpServerError)>,
 }
 
 impl<T: Clone + std::marker::Send + 'static> Server<T> {
@@ -47,6 +49,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             static_endpoints: HashMap::new(),
             public_var: public_var,
             middleware: None,
+            logger: None,
         };
     }
     ///Add function as middleware (just before sending response). The response is a bool. If it's true, the request will continue; if it's false, it will stop.
@@ -56,19 +59,21 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     ) {
         self.middleware = Some(handle);
     }
+    ///Add your own custom error logger function
+    pub fn use_logger(&mut self, handle: fn(input: &HttpServerError)) {
+        self.logger = Some(handle);
+    }
     ///Creates a new static url
     /// For example a folder named "images" on path /images every image in that folder will be exposed like "/images/example.png"
     pub fn new_static(&mut self, path: &str, folder: &str) -> Result<(), HttpServerError> {
         if self.active == true {
-            return Err(HttpServerError::new("Server is already running!".to_string()));
+            return Err(HttpServerError::new("Server is already running!"));
         }
         let path_: &Path = Path::new(&folder);
 
         if path_.is_dir() == false || path_.exists() == false {
             return Err(
-                HttpServerError::new(
-                    "Folder does not exist or the path provided is a file!".to_string()
-                )
+                HttpServerError::new("Folder does not exist or the path provided is a file!")
             );
         }
         let mut path = path.to_owned();
@@ -77,7 +82,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 self.endpoints.iter().any(|x| x.path == path && x.req_type == RequestType::Get)) ||
             (self.static_endpoints.len() > 0 && self.static_endpoints.iter().any(|x| x.0 == &path))
         {
-            return Err(HttpServerError::new("Endpoint already exists!".to_string()));
+            return Err(HttpServerError::new("Endpoint already exists!"));
         }
         if path.len() > 1 && path.ends_with("/") {
             path.remove(path.len() - 1);
@@ -92,7 +97,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         handle: fn(req: Request, res: Response, public_var: Option<T>)
     ) -> Result<(), HttpServerError> {
         if self.active == true {
-            return Err(HttpServerError::new("Server is already running!".to_string()));
+            return Err(HttpServerError::new("Server is already running!"));
         }
         let mut path = path.to_owned();
         if
@@ -100,7 +105,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 self.endpoints.iter().any(|x| x.path == path && x.req_type == req_type)) ||
             (self.static_endpoints.len() > 0 && self.static_endpoints.iter().any(|x| x.0 == &path))
         {
-            return Err(HttpServerError::new("Endpoint already exists!".to_string()));
+            return Err(HttpServerError::new("Endpoint already exists!"));
         }
         if path.len() > 1 && path.ends_with("/") {
             path.remove(path.len() - 1);
@@ -163,17 +168,19 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         on_complete: fn()
     ) -> Result<(), HttpServerError> {
         if port > 65_535 {
-            return Err(HttpServerError::new("Invalid port: port must be 0-65,535".to_string()));
+            return Err(HttpServerError::new("Invalid port: port must be 0-65,535"));
         }
         if self.active == true {
-            return Err(HttpServerError::new("The server is already running!".to_string()));
+            return Err(HttpServerError::new("The server is already running!"));
         }
         self.active = true;
 
         let pool: ThreadPool = ThreadPool::new(threads.unwrap_or(num_cpus::get()));
         let mut routes = self.endpoints.clone();
         let static_routes = self.static_endpoints.clone();
+
         let middleware = self.middleware.clone();
+        let logger = self.logger.unwrap_or(logger::eprint);
 
         let max_content_length = self.max_content_length.clone();
         let public_var = self.public_var.clone();
@@ -193,7 +200,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
 
                 pool.execute(move || {
                     let stream = stream.unwrap();
-                    Self::handle_request(
+                    let res = Self::handle_request(
                         stream,
                         max_content_length_clone,
                         routes_clone,
@@ -202,6 +209,9 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
 
                         public_var_clone
                     );
+                    if res.is_err() {
+                        logger(&res.unwrap_err());
+                    }
                 });
             }
         });
@@ -219,11 +229,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             fn(url: &Url, req: &Request, res: &mut Response, public_var: &Option<T>) -> bool
         >,
         public_var: Option<T>
-    ) {
+    ) -> Result<(), HttpServerError> {
         let bump = Bump::new(); // Allocator
 
         let mut bfreader: BufReader<TcpStream> = BufReader::new(
-            stream.try_clone().expect("Failed to create Buffer Reader")
+            stream.try_clone().expect("Failed to create buffer reader")
         );
 
         let mut headers_string: String = "".to_string();
@@ -237,7 +247,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                     }
                 }
                 Err(e) => {
-                    return;
+                    return Err(HttpServerError::new("Error reading request headers!"));
                 }
             }
 
@@ -249,11 +259,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         let lines: Vec<&str> = headers_string.lines().collect();
 
         if lines.len() == 0 {
-            return;
+            return Err(HttpServerError::new("No headers!"));
         }
         let req_url = Url::parse(lines[0]).unwrap();
 
-        let mut req = Request::parse(&lines, Some(req_url.query), None);
+        let mut req = Request::parse(&lines, Some(req_url.query), None)?;
 
         if let Some(socket) = stream.peer_addr().ok() {
             req.ip = Some(socket.ip().to_string());
@@ -271,7 +281,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             }
 
             res.send_code(ResponseCode::MethodNotAllowed);
-            return;
+            return Err(HttpServerError::new("Method not allowed!"));
         }
         // Check if body in GET or HEAD
         if
@@ -280,13 +290,13 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         {
             req.read_only_body(&mut bfreader);
             res.send_code(ResponseCode::BadRequest);
-            return;
+            return Err(HttpServerError::new("Bad request!"));
         }
         //Check if over content length
         if max_content_length > 0 && req.content_length > max_content_length && has_body {
             req.read_only_body(&mut bfreader);
             res.send_code(ResponseCode::ContentTooLarge);
-            return;
+            return Err(HttpServerError::new("Content too large!"));
         }
         // Middleware
         if middleware.is_some() {
@@ -301,7 +311,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 &public_var
             );
             if result == false {
-                return;
+                return Ok(());
             }
         }
         //
@@ -330,7 +340,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 }
 
                 res.send_code(ResponseCode::MethodNotAllowed);
-                return;
+                return Err(HttpServerError::new("Method not allowed!"));
             }
             let route = &routes[0];
 
@@ -342,7 +352,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
 
             (route.handle)(req, res, public_var);
 
-            return;
+            return Ok(());
         }
 
         let mut sent = false;
@@ -382,7 +392,9 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         }
         if sent == false {
             res.send_code(ResponseCode::NotFound);
+            return Err(HttpServerError::new("Not found!"));
         }
+        return Ok(());
     }
     ///Locks the thread from stoping (put it in the end of the main file to keep the server running);
     pub fn lock() {

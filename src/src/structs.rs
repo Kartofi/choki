@@ -1,6 +1,10 @@
 use std::{ collections::HashMap, io::BufRead };
 
-use super::{ request::Request, response::Response, utils::utils::count_char_occurrences };
+use super::{
+    request::Request,
+    response::Response,
+    utils::utils::{ contains_blank, count_char_occurrences },
+};
 
 #[derive(Clone, PartialEq)]
 pub enum RequestType {
@@ -15,8 +19,12 @@ pub enum RequestType {
     Other(String),
 }
 impl RequestType {
-    pub fn from_string(input: &str) -> RequestType {
-        match input.to_lowercase().as_str() {
+    pub fn from_string(input: &str) -> Result<RequestType, HttpServerError> {
+        if contains_blank(input) {
+            return Err(HttpServerError::new("Content Type can't contain blank spaces."));
+        }
+
+        let res = match input.to_lowercase().as_str() {
             "get" => RequestType::Get,
             "post" => RequestType::Post,
             "put" => RequestType::Put,
@@ -26,7 +34,8 @@ impl RequestType {
             "patch" => RequestType::Patch,
 
             input => RequestType::Other(input.to_string()),
-        }
+        };
+        Ok(res)
     }
 }
 #[derive(Clone, PartialEq)]
@@ -124,8 +133,12 @@ impl ContentType {
         }
     }
 
-    pub fn from_string(input: &str) -> ContentType {
-        match input.to_lowercase().as_str() {
+    pub fn from_string(input: &str) -> Result<ContentType, HttpServerError> {
+        if contains_blank(input) {
+            return Err(HttpServerError::new("Content Type can't contain blank spaces."));
+        }
+
+        let res = match input.to_lowercase().as_str() {
             // Text Types
             "text/plain" => ContentType::PlainText,
             "text/html" => ContentType::Html,
@@ -149,7 +162,8 @@ impl ContentType {
             "video/mp4" => ContentType::Mp4,
 
             input => ContentType::Other(input.to_string()),
-        }
+        };
+        Ok(res)
     }
 }
 
@@ -158,8 +172,8 @@ pub struct HttpServerError {
     pub reason: String,
 }
 impl HttpServerError {
-    pub fn new(reason: String) -> HttpServerError {
-        return HttpServerError { reason: reason };
+    pub fn new(reason: &str) -> HttpServerError {
+        return HttpServerError { reason: reason.to_string() };
     }
 }
 pub struct Url {
@@ -178,9 +192,9 @@ impl Url {
     pub fn parse(input: &str) -> Result<Url, HttpServerError> {
         let parts: Vec<&str> = input.split(" ").collect();
         if parts.len() != 3 {
-            return Err(HttpServerError::new("Invalid input.".to_string()));
+            return Err(HttpServerError::new("Invalid input."));
         }
-        let req_type: RequestType = RequestType::from_string(&parts[0].to_lowercase());
+        let req_type: RequestType = RequestType::from_string(&parts[0].to_lowercase())?;
 
         let mut path: &str = parts[1];
         let mut query: HashMap<String, String> = HashMap::new();
@@ -385,13 +399,13 @@ impl BodyItemInfo {
     pub fn to_body_item(&self) -> BodyItem {
         return BodyItem::new_url(self, self.value.clone().unwrap_or_default());
     }
-    pub fn from_str(input: &str) -> BodyItemInfo {
+    pub fn from_str(input: &str) -> Result<BodyItemInfo, HttpServerError> {
         let lines: Vec<&str> = input.lines().collect();
 
         let mut body_item = BodyItemInfo::default();
 
         if lines.len() == 0 {
-            return body_item;
+            return Ok(body_item);
         }
 
         let mut parts: Vec<&str> = Vec::new();
@@ -399,9 +413,9 @@ impl BodyItemInfo {
         if lines.len() > 1 {
             parts = lines[1].split(": ").collect();
             if parts.len() > 1 {
-                body_item.content_type = ContentType::from_string(parts[1]);
+                body_item.content_type = ContentType::from_string(parts[1])?;
             } else {
-                return BodyItemInfo::default();
+                return Ok(BodyItemInfo::default());
             }
         } else {
             body_item.content_type = ContentType::MultipartForm;
@@ -410,7 +424,7 @@ impl BodyItemInfo {
         parts = lines[0].split("; ").collect();
 
         if parts.len() < 2 || (parts.len() != 3 && lines.len() == 2) {
-            return BodyItemInfo::default();
+            return Ok(BodyItemInfo::default());
         }
         if lines.len() == 2 {
             let file_name = parts[2].to_string();
@@ -427,7 +441,7 @@ impl BodyItemInfo {
             body_item.name = Some(name[0..name.len() - 1].to_string());
         }
 
-        return body_item;
+        return Ok(body_item);
     }
 }
 /// Holds the data and a pointer to the info

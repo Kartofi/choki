@@ -12,7 +12,9 @@ pub fn map_compression_level(compression_float: f32) -> u32 {
         (compression_float * 10.0).round() as u32
     }
 }
-
+pub fn contains_blank(input: &str) -> bool {
+    return input.contains("\t") || input.contains(" ");
+}
 // Buffer stuff
 pub fn replace_bytes(buffer: &mut Vec<u8>, target: &[u8], replacement: &[u8]) {
     let mut i = 0;

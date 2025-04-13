@@ -8,6 +8,14 @@ use choki::Server;
 
 fn main() {
     let mut server: Server<u8> = Server::new(None, None);
+
+    server.use_middleware(|url: &Url, req: &Request, res: &mut Response, public_var: &Option<u8>| {
+        println!("Ip {}", req.ip.clone().unwrap_or_default());
+        return true;
+    });
+    server.use_logger(|input: &choki::src::structs::HttpServerError| {
+        println!("Hi custom error printer: {}", input.reason);
+    });
     server
         .on(
             RequestType::Other("Custom".to_string()),
@@ -17,10 +25,7 @@ fn main() {
             }
         )
         .unwrap();
-    server.use_middleware(|url: &Url, req: &Request, res: &mut Response, public_var: &Option<u8>| {
-        println!("Ip {}", req.ip.clone().unwrap_or_default());
-        return true;
-    });
+
     server
         .get("/watch/[id]", |req: Request, mut res: Response, public_var: Option<u8>| {
             res.send_string("HI");

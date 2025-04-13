@@ -63,7 +63,7 @@ impl Request {
         lines: &Vec<&str>,
         query: Option<HashMap<String, String>>,
         params: Option<HashMap<String, String>>
-    ) -> Request {
+    ) -> Result<Request, HttpServerError> {
         let mut req = Request::new(
             query.unwrap_or_default(),
             params.unwrap_or_default(),
@@ -127,7 +127,7 @@ impl Request {
                 let content_type: String = extract_data(line, "Content-Type: ");
                 let parts: Vec<&str> = content_type.split("; ").collect();
                 if parts.len() > 0 {
-                    req.content_type = Some(ContentType::from_string(parts[0]));
+                    req.content_type = Some(ContentType::from_string(parts[0])?);
                 }
                 if parts.len() > 1 {
                     let boudary = parts[1].replace("boundary=", "");
@@ -159,7 +159,7 @@ impl Request {
                 }
             }
         }
-        return req;
+        return Ok(req);
     }
     // Body Stuff
     pub fn body(&self) -> Vec<BodyItem> {
@@ -190,7 +190,11 @@ impl Request {
         }
         return res;
     }
-    pub fn extract_body(&mut self, bfreader: &mut BufReader<TcpStream>, bump: Bump) {
+    pub fn extract_body(
+        &mut self,
+        bfreader: &mut BufReader<TcpStream>,
+        bump: Bump
+    ) -> Result<bool, HttpServerError> {
         let mut total_size = 0;
 
         let mut buffer: [u8; 4096] = [0; 4096];
@@ -232,12 +236,12 @@ impl Request {
                     self.body.push(body_item);
                 }
             }
-            return;
+            return Ok(true);
         }
         if content_type != ContentType::MultipartForm {
             self.body.push(BodyItemInfo::new_simple(content_type));
             self.body_data_segments.push((0, self.buffer.len()));
-            return;
+            return Ok(true);
         }
         let boundary = (&self.boudary.clone().unwrap()).as_bytes().to_owned();
 
@@ -291,7 +295,7 @@ impl Request {
                     &String::from_utf8_lossy(
                         &self.buffer[data_indexes[0].0 + start..data_indexes[0].1 + start]
                     )
-                );
+                )?;
                 self.body_data_segments.push((
                     data_indexes[1].0 + start,
                     data_indexes[1].1 + start,
@@ -303,6 +307,7 @@ impl Request {
                 data_indexes.clear();
             }
         }
+        return Ok(true);
     }
     pub fn read_only_body(&self, bfreader: &mut BufReader<TcpStream>) {
         let mut total_size = 0;

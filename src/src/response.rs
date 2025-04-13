@@ -1,11 +1,10 @@
-use std::{ io::{ BufReader, Read, Write }, net::TcpStream };
+use std::{ io::{ BufReader, Read, Write }, net::TcpStream, result };
 
 use flate2::{ write::GzEncoder, Compression };
 
 use crate::{ src::structs::*, Encoding };
 
 use super::utils::utils::{ map_compression_level };
-use super::utils::logger::{ eprint };
 
 pub struct Response {
     stream: TcpStream,
@@ -111,7 +110,11 @@ impl Response {
         self.send_bytes(&data.as_bytes(), Some(ContentType::Json));
     }
     /// Sends raw bytes.
-    pub fn send_bytes(&mut self, data: &[u8], content_type: Option<ContentType>) {
+    pub fn send_bytes(
+        &mut self,
+        data: &[u8],
+        content_type: Option<ContentType>
+    ) -> Result<(), HttpServerError> {
         let content_type: ContentType = if !content_type.is_none() {
             content_type.unwrap()
         } else {
@@ -143,11 +146,16 @@ impl Response {
             Err(_e) => {}
         }
         if let Err(e) = self.stream.flush() {
-            eprint(&format!("Failed to flush stream: {}", e));
+            return Err(HttpServerError::new(&format!("Failed to flush stream: {}", e)));
         }
+        Ok(())
     }
     /// Sends raw bytes in chunks.
-    pub fn send_bytes_chunked(&mut self, data: &[u8], content_type: Option<ContentType>) {
+    pub fn send_bytes_chunked(
+        &mut self,
+        data: &[u8],
+        content_type: Option<ContentType>
+    ) -> Result<(), HttpServerError> {
         let content_type: ContentType = if !content_type.is_none() {
             content_type.unwrap()
         } else {
@@ -187,32 +195,30 @@ impl Response {
             let chunk = &compressed_data[start..end];
 
             if let Err(e) = self.stream.write_all(format!("{:X}\r\n", chunk.len()).as_bytes()) {
-                eprint(&format!("Failed to write chunk size: {}", e));
-
-                return;
+                return Err(HttpServerError::new(&format!("Failed to write chunk size: {}", e)));
             }
 
             if let Err(e) = self.stream.write_all(chunk) {
-                eprint(&format!("Failed to write chunk data: {}", e));
-                return;
+                return Err(HttpServerError::new(&format!("Failed to write chunk data: {}", e)));
             }
 
             if let Err(e) = self.stream.write_all(b"\r\n") {
-                eprint(&format!("Failed to write chunk terminator: {}", e));
-                return;
+                return Err(
+                    HttpServerError::new(&format!("Failed to write chunk terminator: {}", e))
+                );
             }
 
             start = end;
         }
 
         if let Err(e) = self.stream.write_all(b"0\r\n\r\n") {
-            eprint(&format!("Failed to write final chunk: {}", e));
-            return;
+            return Err(HttpServerError::new(&format!("Failed to write final chunk: {}", e)));
         }
 
         if let Err(e) = self.stream.flush() {
-            eprint(&format!("Failed to flush stream: {}", e));
+            return Err(HttpServerError::new(&format!("Failed to flush stream: {}", e)));
         }
+        Ok(())
     }
     /// Pipe a whole stream. Aka read everything from input stream and send it.
     pub fn pipe_stream(
@@ -220,7 +226,7 @@ impl Response {
         mut stream: BufReader<impl Read>,
         content_type: Option<ContentType>,
         stream_size: Option<&u64>
-    ) {
+    ) -> Result<(), HttpServerError> {
         if let Some(ct) = content_type {
             self.headers.push(Header::new("Content-Type", ct.as_str()));
         }
@@ -242,8 +248,7 @@ impl Response {
         response += "\r\n\r\n";
 
         if let Err(e) = self.stream.write_all(response.as_bytes()) {
-            eprint(&format!("Failed to write response headers: {}", e));
-            return;
+            return Err(HttpServerError::new(&format!("Failed to write response headers: {}", e)));
         }
 
         const CHUNK_SIZE: usize = 8192 * 2; // 16 KB chunk size
@@ -261,24 +266,28 @@ impl Response {
                 } // EOF reached
                 Ok(n) => {
                     if let Err(e) = self.stream.write_all(format!("{:X}\r\n", n).as_bytes()) {
-                        eprint(&format!("Failed to write chunk size: {}", e));
-                        return;
+                        return Err(
+                            HttpServerError::new(&format!("Failed to write chunk size: {}", e))
+                        );
                     }
 
                     if let Err(e) = self.stream.write_all(&buffer[..n]) {
-                        eprint(&format!("Failed to write chunk data: {}", e));
-                        return;
+                        return Err(
+                            HttpServerError::new(&format!("Failed to write chunk data: {}", e))
+                        );
                     }
 
                     if let Err(e) = self.stream.write_all(b"\r\n") {
-                        eprint(&format!("Failed to write chunk terminator: {}", e));
-                        return;
+                        return Err(
+                            HttpServerError::new(
+                                &format!("Failed to write chunk terminator: {}", e)
+                            )
+                        );
                     }
                     total_size += n as i64;
                 }
                 Err(e) => {
-                    eprint(&format!("Failed to read from stream: {}", e));
-                    break;
+                    return Err(HttpServerError::new(&format!("Failed to read from stream: {}", e)));
                 }
             }
             if total_size > stream_size && stream_size > 0 {
@@ -287,20 +296,24 @@ impl Response {
         }
 
         if let Err(e) = self.stream.write_all(b"0\r\n\r\n") {
-            eprint(&format!("Failed to write final chunk: {}", e));
-            return;
+            return Err(HttpServerError::new(&format!("Failed to write final chunk: {}", e)));
         }
 
         if let Err(e) = self.stream.flush() {
-            eprint(&format!("Failed to flush stream: {}", e));
+            return Err(HttpServerError::new(&format!("Failed to flush stream: {}", e)));
         }
+        Ok(())
     }
     /// Send Download bytes.
-    pub fn send_download_bytes(&mut self, data: &[u8], file_name: &str) {
+    pub fn send_download_bytes(
+        &mut self,
+        data: &[u8],
+        file_name: &str
+    ) -> Result<(), HttpServerError> {
         self.headers.push(
             Header::new("Content-Disposition", &("attachment; filename=".to_string() + file_name))
         );
-        self.send_bytes_chunked(data, Some(ContentType::OctetStream));
+        self.send_bytes_chunked(data, Some(ContentType::OctetStream))
     }
     /// Send Download stream.
     pub fn send_download_stream(
@@ -308,12 +321,12 @@ impl Response {
         stream: BufReader<impl Read>,
         file_name: &str,
         file_size: Option<&u64>
-    ) {
+    ) -> Result<(), HttpServerError> {
         self.headers.push(
             Header::new("Content-Disposition", &("attachment; filename=".to_string() + file_name))
         );
 
-        self.pipe_stream(stream, Some(ContentType::OctetStream), file_size);
+        self.pipe_stream(stream, Some(ContentType::OctetStream), file_size)
     }
 
     //./ Sends a response code (404, 200...)

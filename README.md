@@ -16,7 +16,7 @@ cargo add choki
 or add it in your Cargo.toml
 
 ```powershell
-choki = "1.1.7"
+choki = "1.1.8"
 ```
 
 # 💡・Features
@@ -113,6 +113,14 @@ Middleware is also supported.
    server.use_middleware(|url: &Url, req: &Request, mut res: &Response, public_var: &Option<u8>| {
         println!("Ip {}", req.ip.clone().unwrap_or_default());
         return true;
+    });
+```
+
+Custom error logger function
+
+```rust
+    server.use_logger(|input: &HttpServerError| {
+        println!("Hi custom error printer: {}", input.reason);
     });
 ```
 
@@ -267,5 +275,10 @@ Add this at the end of your file
 ```
 
 Also in the src folder there is a `main.rs` file which can be used as an example.
+
+# Performance🚀
+
+Around 30k request per second with i5-9400f.
+It is very light on ram. About 300kb.
 
 ## And thats it enjoy using it and keep in mind THIS IS NOT PRODUCTION READY!!!
