@@ -94,7 +94,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         &mut self,
         path: &str,
         req_type: RequestType,
-        handle: fn(req: Request, res: Response, public_var: Option<T>)
+        handle: fn(
+            req: Request,
+            res: Response,
+            public_var: Option<T>
+        ) -> Result<(), HttpServerError>
     ) -> Result<(), HttpServerError> {
         if self.active == true {
             return Err(HttpServerError::new("Server is already running!"));
@@ -118,7 +122,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     pub fn get(
         &mut self,
         path: &str,
-        handle: fn(req: Request, res: Response, public_var: Option<T>)
+        handle: fn(
+            req: Request,
+            res: Response,
+            public_var: Option<T>
+        ) -> Result<(), HttpServerError>
     ) -> Result<(), HttpServerError> {
         self.new_endpoint(path, RequestType::Get, handle)
     }
@@ -127,7 +135,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     pub fn post(
         &mut self,
         path: &str,
-        handle: fn(req: Request, res: Response, public_var: Option<T>)
+        handle: fn(
+            req: Request,
+            res: Response,
+            public_var: Option<T>
+        ) -> Result<(), HttpServerError>
     ) -> Result<(), HttpServerError> {
         self.new_endpoint(path, RequestType::Post, handle)
     }
@@ -135,7 +147,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     pub fn put(
         &mut self,
         path: &str,
-        handle: fn(req: Request, res: Response, public_var: Option<T>)
+        handle: fn(
+            req: Request,
+            res: Response,
+            public_var: Option<T>
+        ) -> Result<(), HttpServerError>
     ) -> Result<(), HttpServerError> {
         self.new_endpoint(path, RequestType::Put, handle)
     }
@@ -143,7 +159,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     pub fn delete(
         &mut self,
         path: &str,
-        handle: fn(req: Request, res: Response, public_var: Option<T>)
+        handle: fn(
+            req: Request,
+            res: Response,
+            public_var: Option<T>
+        ) -> Result<(), HttpServerError>
     ) -> Result<(), HttpServerError> {
         self.new_endpoint(path, RequestType::Delete, handle)
     }
@@ -153,7 +173,11 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         &mut self,
         req_type: RequestType,
         path: &str,
-        handle: fn(req: Request, res: Response, public_var: Option<T>)
+        handle: fn(
+            req: Request,
+            res: Response,
+            public_var: Option<T>
+        ) -> Result<(), HttpServerError>
     ) -> Result<(), HttpServerError> {
         self.new_endpoint(path, req_type, handle)
     }
@@ -280,7 +304,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                 req.read_only_body(&mut bfreader);
             }
 
-            res.send_code(ResponseCode::MethodNotAllowed);
+            res.send_code(ResponseCode::MethodNotAllowed)?;
             return Err(HttpServerError::new("Method not allowed!"));
         }
         // Check if body in GET or HEAD
@@ -289,13 +313,13 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             (req_url.req_type == RequestType::Get || req_url.req_type == RequestType::Head)
         {
             req.read_only_body(&mut bfreader);
-            res.send_code(ResponseCode::BadRequest);
+            res.send_code(ResponseCode::BadRequest)?;
             return Err(HttpServerError::new("Bad request!"));
         }
         //Check if over content length
         if max_content_length > 0 && req.content_length > max_content_length && has_body {
             req.read_only_body(&mut bfreader);
-            res.send_code(ResponseCode::ContentTooLarge);
+            res.send_code(ResponseCode::ContentTooLarge)?;
             return Err(HttpServerError::new("Content too large!"));
         }
         // Middleware
@@ -339,7 +363,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                     req.read_only_body(&mut bfreader);
                 }
 
-                res.send_code(ResponseCode::MethodNotAllowed);
+                res.send_code(ResponseCode::MethodNotAllowed)?;
                 return Err(HttpServerError::new("Method not allowed!"));
             }
             let route = &routes[0];
@@ -347,10 +371,10 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             req.params = params;
 
             if has_body {
-                req.extract_body(&mut bfreader, bump);
+                req.extract_body(&mut bfreader, bump)?;
             }
 
-            (route.handle)(req, res, public_var);
+            (route.handle)(req, res, public_var)?;
 
             return Ok(());
         }

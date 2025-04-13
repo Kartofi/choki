@@ -341,14 +341,22 @@ impl Header {
 pub struct EndPoint<T: Clone + std::marker::Send + 'static> {
     pub path: String,
     pub req_type: RequestType,
-    pub handle: fn(req: Request, res: Response, public_var: Option<T>),
+    pub handle: fn(
+        req: Request,
+        res: Response,
+        public_var: Option<T>
+    ) -> Result<(), HttpServerError>,
 }
 
 impl<T: Clone + std::marker::Send + 'static> EndPoint<T> {
     pub fn new(
         path: String,
         req_type: RequestType,
-        handle: fn(req: Request, res: Response, public_var: Option<T>)
+        handle: fn(
+            req: Request,
+            res: Response,
+            public_var: Option<T>
+        ) -> Result<(), HttpServerError>
     ) -> EndPoint<T> {
         if count_char_occurrences(&path, '[') != count_char_occurrences(&path, ']') {
             panic!("Syntax error in pattern: {}", path);

@@ -3,7 +3,7 @@ use std::io::{ BufReader, Read, Seek, SeekFrom, Write };
 
 use choki::src::request::Request;
 use choki::src::response::Response;
-use choki::src::structs::{ ContentType, Header, RequestType, ResponseCode, Url };
+use choki::src::structs::{ ContentType, Header, HttpServerError, RequestType, ResponseCode, Url };
 use choki::Server;
 
 fn main() {
@@ -21,30 +21,32 @@ fn main() {
             RequestType::Other("Custom".to_string()),
             "/",
             |req: Request, mut res: Response, public_var: Option<u8>| {
-                res.send_string("HI custom one");
+                res.send_string("HI custom one")
             }
         )
         .unwrap();
 
     server
         .get("/watch/[id]", |req: Request, mut res: Response, public_var: Option<u8>| {
-            res.send_string("HI");
+            res.send_string("HI")
         })
         .unwrap();
     server
         .get("/test", |req: Request, mut res: Response, public_var: Option<u8>| {
-            res.send_code(ResponseCode::Ok);
+            res.send_code(ResponseCode::Ok)
         })
         .unwrap();
     server
         .post("/filetest", |req: Request, mut res: Response, public_var: Option<u8>| {
-            res.send_code(ResponseCode::Ok);
+            res.send_code(ResponseCode::Ok)?;
             let body: Vec<choki::src::structs::BodyItem<'_>> = req.body();
+            Err(HttpServerError::new("Hi"))
         })
         .unwrap();
     server
         .get("/filetest", |mut req: Request, mut res: Response, public_var: Option<u8>| {
-            res.send_code(ResponseCode::Ok);
+            res.send_code(ResponseCode::Ok)?;
+            Err(HttpServerError::new("Opsi no!"))
         })
         .unwrap();
 
@@ -55,7 +57,9 @@ fn main() {
             let mut buf_reader = BufReader::new(file);
             let mut data: Vec<u8> = Vec::new();
             buf_reader.read_to_end(&mut data).unwrap();
-            res.send_bytes_chunked(&data, Some(ContentType::Html));
+            res.send_bytes_chunked(&data, Some(ContentType::Html))?;
+
+            Ok(())
         })
         .unwrap();
 

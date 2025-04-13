@@ -16,7 +16,7 @@ cargo add choki
 or add it in your Cargo.toml
 
 ```powershell
-choki = "1.1.8"
+choki = "1.1.9"
 ```
 
 # 💡・Features
@@ -44,7 +44,7 @@ You can set max request size and a public var that is in this case type u8 and i
 
 ```rust
 server.get("/".to_string(), |req: Request, mut res: Response, public_var: Option<u8>| {
-    res.send_string("HI");
+    res.send_string("HI")
 }).unwrap();
 ```
 
@@ -52,7 +52,7 @@ server.get("/".to_string(), |req: Request, mut res: Response, public_var: Option
 
 ```rust
 server.post("/".to_string(), |req: Request, mut res: Response, public_var: Option<u8>| {
-    res.send_string("Letter!");
+    res.send_string("Letter!")
 }).unwrap();
 ```
 
@@ -60,7 +60,7 @@ server.post("/".to_string(), |req: Request, mut res: Response, public_var: Optio
 
 ```rust
 server.put("/put".to_string(), |req: Request, mut res: Response, public_var: Option<u8>| {
-    res.send_string("Hello world!");
+    res.send_string("Hello world!")
 }).unwrap();
 ```
 
@@ -68,7 +68,7 @@ server.put("/put".to_string(), |req: Request, mut res: Response, public_var: Opt
 
 ```rust
 server.delete("/delete".to_string(), |req: Request, mut res: Response, public_var: Option<u8>| {
-    res.send_string("Boom!");
+    res.send_string("Boom!")
 }).unwrap();
 ```
 
@@ -79,7 +79,7 @@ server.on(
     RequestType::Other("Custom".to_string()),
     "/",
     |req: Request, mut res: Response, public_var: Option<u8>| {
-        res.send_string("HI custom one");
+        res.send_string("HI custom one")
     }
 ).unwrap();
 ```
@@ -97,7 +97,7 @@ As of `1.0.8` choki supports params
 ```rust
  server.post("/search/[id]".to_string(), |req: Request, mut res: Response, public_var: Option<u8>| {
     println!("{}", req.params.get("id").unwrap()); // if i make request to /search/pizza this will print pizza
-    res.send_string("HI");
+    res.send_string("HI")
 }).unwrap();
 ```
 
@@ -164,7 +164,7 @@ res.send_code(&mut self, code: usize) // sends a HTTP response code (404,200...)
 Also you can send download bytes or streams
 
 ```rust
-res.send_download_bytes(&mut self, data: &[u8], file_name: &str) // Sends bytes and the browser is goind to start to download it.
+res.send_download_bytes(&mut self, data: &[u8], file_name: &str)  // Sends bytes and the browser is goind to start to download it.
 ```
 
 ```rust

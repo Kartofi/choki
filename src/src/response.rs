@@ -94,20 +94,20 @@ impl Response {
         }
     }
     /// Sends string as output in chunks.
-    pub fn send_string_chunked(&mut self, data: &str) {
-        self.send_bytes_chunked(data.as_bytes(), Some(ContentType::PlainText));
+    pub fn send_string_chunked(&mut self, data: &str) -> Result<(), HttpServerError> {
+        self.send_bytes_chunked(data.as_bytes(), Some(ContentType::PlainText))
     }
     /// Sends string as output.
-    pub fn send_string(&mut self, data: &str) {
-        self.send_bytes(&data.as_bytes(), Some(ContentType::PlainText));
+    pub fn send_string(&mut self, data: &str) -> Result<(), HttpServerError> {
+        self.send_bytes(&data.as_bytes(), Some(ContentType::PlainText))
     }
     ///Sends json as output in chunks.
-    pub fn send_json_chunked(&mut self, data: &str) {
-        self.send_bytes_chunked(data.as_bytes(), Some(ContentType::Json));
+    pub fn send_json_chunked(&mut self, data: &str) -> Result<(), HttpServerError> {
+        self.send_bytes_chunked(data.as_bytes(), Some(ContentType::Json))
     }
     ///Sends json as output.
-    pub fn send_json(&mut self, data: &str) {
-        self.send_bytes(&data.as_bytes(), Some(ContentType::Json));
+    pub fn send_json(&mut self, data: &str) -> Result<(), HttpServerError> {
+        self.send_bytes(&data.as_bytes(), Some(ContentType::Json))
     }
     /// Sends raw bytes.
     pub fn send_bytes(
@@ -330,7 +330,7 @@ impl Response {
     }
 
     //./ Sends a response code (404, 200...)
-    pub fn send_code(&mut self, code: ResponseCode) {
+    pub fn send_code(&mut self, code: ResponseCode) -> Result<(), HttpServerError> {
         let mut response = "HTTP/1.1 ".to_owned() + &code.format_string();
 
         self.set_header(&Header::new("Content-Type", "text/plain"));
@@ -345,6 +345,7 @@ impl Response {
             Ok(_res) => {}
             Err(_e) => {}
         }
+        Ok(())
     }
     /// Get raw stream
     pub fn get_stream(&mut self) -> &TcpStream {
