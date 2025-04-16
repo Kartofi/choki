@@ -474,22 +474,36 @@ impl<'a> BodyItem<'a> {
         };
     }
 }
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ResponseCode {
-    Continue = 100,
-    Ok = 200,
-    PartialContent = 206,
-    BadRequest = 400,
-    NotFound = 404,
-    MethodNotAllowed = 405,
-    ContentTooLarge = 413,
-    RangeNotSatisfiable = 416,
+    Continue,
+    Ok,
+    PartialContent,
+    BadRequest,
+    NotFound,
+    MethodNotAllowed,
+    ContentTooLarge,
+    RangeNotSatisfiable,
 
-    Unknown = 0,
+    Other(i64),
 }
+
 impl ResponseCode {
-    /// Converts i32 into ResponseCode
-    pub fn from_i32(code: &i32) -> ResponseCode {
+    pub fn as_u16(&self) -> u16 {
+        match self {
+            ResponseCode::Continue => 100,
+            ResponseCode::Ok => 200,
+            ResponseCode::PartialContent => 206,
+            ResponseCode::BadRequest => 400,
+            ResponseCode::NotFound => 404,
+            ResponseCode::MethodNotAllowed => 405,
+            ResponseCode::ContentTooLarge => 413,
+            ResponseCode::RangeNotSatisfiable => 416,
+            ResponseCode::Other(code) => *code as u16,
+        }
+    }
+
+    pub fn from_i64(code: i64) -> ResponseCode {
         match code {
             100 => ResponseCode::Continue,
             200 => ResponseCode::Ok,
@@ -500,12 +514,12 @@ impl ResponseCode {
             413 => ResponseCode::ContentTooLarge,
             416 => ResponseCode::RangeNotSatisfiable,
 
-            _ => ResponseCode::Unknown,
+            _ => ResponseCode::Other(code),
         }
     }
-    /// Returns the description of response code. For example: "Range Not Satisfiable"
+
     pub fn to_desc(&self) -> String {
-        match *self as i32 {
+        match self.as_u16() {
             100 => "Continue".to_owned(),
             200 => "OK".to_owned(),
             206 => "Partial Content".to_owned(),
@@ -520,7 +534,7 @@ impl ResponseCode {
     }
 
     pub fn to_string(&self) -> String {
-        (*self as i32).to_string()
+        self.as_u16().to_string()
     }
 
     pub fn format_string(&self) -> String {
