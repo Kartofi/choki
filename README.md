@@ -1,6 +1,6 @@
 A simple http server library built from scratch.
 <br>
-Using only the <a href="https://crates.io/crates/threadpool">threadpool</a>, <a href="https://crates.io/crates/num_cpus">num_cpus</a> and <a href="https://crates.io/crates/flate2">flate2</a>. (and ofc the built in std)
+Using only the <a href="https://crates.io/crates/threadpool">threadpool</a>, <a href="https://crates.io/crates/urlencoding">urlencoding</a>, <a href="https://crates.io/crates/num_cpus">num_cpus</a> and <a href="https://crates.io/crates/flate2">flate2</a>. (and ofc the built in std)
 
 Using bumpalo allocator for the body buffer.
 <br>
@@ -16,7 +16,7 @@ cargo add choki
 or add it in your Cargo.toml
 
 ```powershell
-choki = "1.1.10"
+choki = "1.1.11"
 ```
 
 # 💡・Features

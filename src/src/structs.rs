@@ -1,5 +1,7 @@
 use std::{ collections::HashMap, io::BufRead };
 
+use urlencoding::decode;
+
 use super::{
     request::Request,
     response::Response,
@@ -225,7 +227,7 @@ impl Url {
             }
         }
 
-        Ok(Url::new(path.to_string(), req_type, query))
+        Ok(Url::new(decode(path).unwrap().into_owned(), req_type, query))
     }
     pub fn match_patern(input: &str, pattern: &str) -> (bool, HashMap<String, String>) {
         let parts_input: Vec<&str> = input
