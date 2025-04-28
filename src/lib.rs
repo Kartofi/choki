@@ -299,14 +299,6 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
 
         let has_body = content_type != ContentType::None && req.content_length > 0;
 
-        if req_url.req_type == RequestType::Unknown {
-            if has_body {
-                req.read_only_body(&mut bfreader);
-            }
-
-            res.send_code(ResponseCode::MethodNotAllowed)?;
-            return Err(HttpServerError::new("Method not allowed!"));
-        }
         // Check if body in GET or HEAD
         if
             has_body &&

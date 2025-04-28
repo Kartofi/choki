@@ -10,7 +10,6 @@ use super::{
 
 #[derive(Clone, PartialEq)]
 pub enum RequestType {
-    Unknown,
     Get,
     Post,
     Put,
@@ -198,7 +197,8 @@ impl Url {
         }
         let req_type: RequestType = RequestType::from_string(&parts[0].to_lowercase())?;
 
-        let mut path: &str = parts[1];
+        let mut path: &str = &decode(parts[1]).unwrap_or_default().to_string();
+
         let mut query: HashMap<String, String> = HashMap::new();
 
         if path.contains("?") == true {
@@ -227,7 +227,7 @@ impl Url {
             }
         }
 
-        Ok(Url::new(decode(path).unwrap().into_owned(), req_type, query))
+        Ok(Url::new(path.to_owned(), req_type, query))
     }
     pub fn match_patern(input: &str, pattern: &str) -> (bool, HashMap<String, String>) {
         let parts_input: Vec<&str> = input
