@@ -198,7 +198,10 @@ impl Url {
         let req_type: RequestType = RequestType::from_string(&parts[0].to_lowercase())?;
 
         let mut path: &str = &decode(parts[1]).unwrap_or_default().to_string();
-
+        //Clean url
+        let clean_path = path.replace("..", "").replace("//", "/");
+        path = &clean_path;
+        //
         let mut query: HashMap<String, String> = HashMap::new();
 
         if path.contains("?") == true {

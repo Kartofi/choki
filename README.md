@@ -16,7 +16,7 @@ cargo add choki
 or add it in your Cargo.toml
 
 ```powershell
-choki = "1.1.12"
+choki = "1.1.13"
 ```
 
 # 💡・Features
