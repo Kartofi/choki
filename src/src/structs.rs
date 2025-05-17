@@ -166,6 +166,33 @@ impl ContentType {
         };
         Ok(res)
     }
+    pub fn from_extension(extension: &str) -> Option<ContentType> {
+        match extension.to_lowercase().as_str() {
+            // Text Types
+            "txt" => Some(ContentType::PlainText),
+            "html" => Some(ContentType::Html),
+            "css" => Some(ContentType::Css),
+            "js" => Some(ContentType::Javascript),
+            "ts" => Some(ContentType::Javascript),
+            "xml" => Some(ContentType::Xml),
+            "xaml" => Some(ContentType::Xml),
+
+            // Application Types
+            "json" => Some(ContentType::Json),
+
+            // Image Types
+            "jpeg" => Some(ContentType::Jpeg),
+            "png" => Some(ContentType::Png),
+            "gif" => Some(ContentType::Gif),
+            "webp" => Some(ContentType::Webp),
+            "svg" => Some(ContentType::SvgXml),
+            // Video Types
+            "mkv" => Some(ContentType::Mkv),
+            "mp4" => Some(ContentType::Mp4),
+
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]

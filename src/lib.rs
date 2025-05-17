@@ -392,14 +392,20 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                             if metadata.is_ok() {
                                 size = Some(metadata.unwrap().len());
                             }
-                            res.pipe_stream(bfreader, None, size.as_ref());
+                            let extension = path.extension().unwrap_or_default();
+
+                            let content_type = ContentType::from_extension(
+                                extension.to_str().unwrap_or_default()
+                            );
+
+                            res.pipe_stream(bfreader, content_type, size.as_ref())?;
                         }
                         Err(_err) => {
-                            res.send_code(ResponseCode::NotFound);
+                            res.send_code(ResponseCode::NotFound)?;
                         }
                     }
                 } else {
-                    res.send_code(ResponseCode::NotFound);
+                    res.send_code(ResponseCode::NotFound)?;
                 }
 
                 sent = true;
@@ -407,7 +413,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
             }
         }
         if sent == false {
-            res.send_code(ResponseCode::NotFound);
+            res.send_code(ResponseCode::NotFound)?;
             return Err(HttpServerError::new("Not found!"));
         }
         return Ok(());
