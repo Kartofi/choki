@@ -62,7 +62,7 @@ fn main() {
             Ok(())
         })
         .unwrap();
-    server.new_static("/static", "./tests/static").unwrap();
+    server.new_static("/static", "./tests/static", false).unwrap();
     server.listen(3000, None, None, || { println!("Server is listening on port 3000") }).unwrap();
     Server::<i32>::lock();
 }

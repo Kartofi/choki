@@ -16,7 +16,7 @@ cargo add choki
 or add it in your Cargo.toml
 
 ```powershell
-choki = "1.1.13"
+choki = "1.1.15"
 ```
 
 # 💡・Features
@@ -87,7 +87,7 @@ server.on(
 ## Create `STATIC` endpoint
 
 ```rust
- server.new_static("/images", "./tests/images").unwrap(); // The first one is the path in the browser for example: example.com/images and the second one is the exposed path from the computer(local)
+ server.new_static("/images", "./tests/images", false).unwrap(); // The first one is the path in the browser for example: example.com/images and the second one is the exposed path from the computer(local). The third one specifies if chunked transport is going to be used.
 ```
 
 ## Create endpoints with params

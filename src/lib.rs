@@ -27,7 +27,7 @@ pub struct Server<T: Clone + std::marker::Send + 'static> {
     active: bool,
     pub max_content_length: usize,
     pub endpoints: Vec<EndPoint<T>>,
-    pub static_endpoints: HashMap<String, String>,
+    pub static_endpoints: HashMap<(String, bool), String>, // Path, Is chunked  -  Folder
 
     pub public_var: Option<T>,
 
@@ -65,7 +65,13 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
     }
     ///Creates a new static url
     /// For example a folder named "images" on path /images every image in that folder will be exposed like "/images/example.png"
-    pub fn new_static(&mut self, path: &str, folder: &str) -> Result<(), HttpServerError> {
+    /// And chunked specifies if it will use chunked transport encoding
+    pub fn new_static(
+        &mut self,
+        path: &str,
+        folder: &str,
+        chunked: bool
+    ) -> Result<(), HttpServerError> {
         if self.active == true {
             return Err(HttpServerError::new("Server is already running!"));
         }
@@ -80,14 +86,15 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         if
             (self.endpoints.len() > 0 &&
                 self.endpoints.iter().any(|x| x.path == path && x.req_type == RequestType::Get)) ||
-            (self.static_endpoints.len() > 0 && self.static_endpoints.iter().any(|x| x.0 == &path))
+            (self.static_endpoints.len() > 0 &&
+                self.static_endpoints.iter().any(|x| &x.0.0 == &path))
         {
             return Err(HttpServerError::new("Endpoint already exists!"));
         }
         if path.len() > 1 && path.ends_with("/") {
             path.remove(path.len() - 1);
         }
-        self.static_endpoints.insert(path, folder.to_owned());
+        self.static_endpoints.insert((path, chunked), folder.to_owned());
         Ok(())
     }
     fn new_endpoint(
@@ -107,7 +114,8 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         if
             (self.endpoints.len() > 0 &&
                 self.endpoints.iter().any(|x| x.path == path && x.req_type == req_type)) ||
-            (self.static_endpoints.len() > 0 && self.static_endpoints.iter().any(|x| x.0 == &path))
+            (self.static_endpoints.len() > 0 &&
+                self.static_endpoints.iter().any(|x| &x.0.0 == &path))
         {
             return Err(HttpServerError::new("Endpoint already exists!"));
         }
@@ -248,7 +256,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
         stream: TcpStream,
         max_content_length: usize,
         routes: Vec<EndPoint<T>>,
-        static_routes: HashMap<String, String>,
+        static_routes: HashMap<(String, bool), String>,
         middleware: Option<
             fn(url: &Url, req: &Request, res: &mut Response, public_var: &Option<T>) -> bool
         >,
@@ -373,8 +381,8 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
 
         let mut sent = false;
         for route in static_routes {
-            if req_url.path.starts_with(&route.0) {
-                let parts: Vec<&str> = req_url.path.split(&route.0).collect();
+            if req_url.path.starts_with(&route.0.0) {
+                let parts: Vec<&str> = req_url.path.split(&route.0.0).collect();
                 if parts.len() == 0 {
                     continue;
                 }
@@ -386,7 +394,7 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                         Ok(file) => {
                             let metadata = file.metadata();
 
-                            let bfreader = BufReader::new(file);
+                            let mut bfreader = BufReader::new(file);
 
                             let mut size: Option<u64> = None;
                             if metadata.is_ok() {
@@ -397,8 +405,13 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                             let content_type = ContentType::from_extension(
                                 extension.to_str().unwrap_or_default()
                             );
-
-                            res.pipe_stream(bfreader, content_type, size.as_ref())?;
+                            if route.0.1 {
+                                res.pipe_stream(bfreader, content_type, size.as_ref())?;
+                            } else {
+                                let mut buff: Vec<u8> = Vec::new();
+                                bfreader.read_to_end(&mut buff);
+                                res.send_bytes(&buff, content_type)?;
+                            }
                         }
                         Err(_err) => {
                             res.send_code(ResponseCode::NotFound)?;
