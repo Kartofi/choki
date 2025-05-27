@@ -409,7 +409,9 @@ impl<T: Clone + std::marker::Send + 'static> Server<T> {
                                 res.pipe_stream(bfreader, content_type, size.as_ref())?;
                             } else {
                                 let mut buff: Vec<u8> = Vec::new();
-                                bfreader.read_to_end(&mut buff);
+                                bfreader
+                                    .read_to_end(&mut buff)
+                                    .map_err(|e| HttpServerError::new(&e.to_string()))?;
                                 res.send_bytes(&buff, content_type)?;
                             }
                         }
