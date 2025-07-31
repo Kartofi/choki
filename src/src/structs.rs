@@ -74,9 +74,10 @@ impl Encoding {
         };
     }
 }
-#[derive(Clone, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug, Default)]
 pub enum ContentType {
     //None
+    #[default]
     None,
 
     // Text Types
